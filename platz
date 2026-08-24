@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lager Beta - Platzabfrage</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; }
+    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
+    input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    ul { list-style: none; padding: 0; }
+    li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html">Buchen (EK/VK)</a> |
+    <a href="artikel.html">Artikel & Druck</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
+
+  <div class="card">
+    <h2>Lagerplatzabfrage</h2>
+    <div id="reader"></div>
+
+    <input type="text" id="platz" placeholder="Lagerplatz eingeben oder scannen (z.B. A1)">
+    <button onclick="queryPlatz()">Suchen</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+
+    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    scanner.render((text) => {
+      document.getElementById('platz').value = text;
+      queryPlatz();
+    });
+
+    async function queryPlatz() {
+      let p = document.getElementById('platz').value.trim();
+      if (!p) return;
+
+      document.getElementById('result').innerText = "Lade Daten...";
+      try {
+        let res = await fetch(`${API_URL}?action=getStorage&platz=${encodeURIComponent(p)}`, { redirect: "follow" });
+        let data = await res.json();
+
+        let html = `<h3>Inhalt auf Platz ${data.platz}:</h3><ul>`;
+        let count = 0;
+        for (let code in data.artikel) {
+          count++;
+          let item = data.artikel[code];
+          html += `<li><b>${item.name}</b> (${code}): ${item.menge} Stück</li>`;
+        }
+        if (count === 0) html += `<li>Platz ist leer.</li>`;
+        html += '</ul>';
+        document.getElementById('result').innerHTML = html;
+      } catch (err) {
+        document.getElementById('result').innerText = "Fehler beim Laden!";
+      }
+    }
+  </script>
+</body>
+</html>
