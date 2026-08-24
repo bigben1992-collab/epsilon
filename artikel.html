@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lager Beta - Artikel & Druck</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; }
+    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
+    input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    .btn-print { background: #059669; }
+    .btn-export { background: #4f46e5; }
+    ul { list-style: none; padding: 0; }
+    li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
+    
+    #labelPreview {
+      border: 1px dashed #ccc;
+      padding: 10px;
+      margin-top: 15px;
+      display: none;
+      background: #fff;
+    }
+    .label-container {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      max-width: 350px;
+      margin: 0 auto;
+      border: 1px solid #000;
+      padding: 8px;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .label-details { text-align: left; flex: 1; }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+      nav, .card > h2, #reader, input, button, .btn-group { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html">Buchen (EK/VK)</a> |
+    <a href="artikel.html">Artikel & Druck</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
+
+  <div class="card">
+    <h2>Artikelabfrage & Druckansicht</h2>
+    <div id="reader"></div>
+
+    <input type="text" id="barcode" placeholder="Barcode scannen / eingeben">
+    <button onclick="queryArticle()">Suchen</button>
+
+    <div id="result"></div>
+    
+    <div id="printArea">
+      <div id="labelPreview">
+        <div class="label-container">
+          <div id="qrcodeCanvas"></div>
+          <div class="label-details">
+            <h4 id="lblTitle" style="margin: 0 0 5px 0; font-size: 14px; word-break: break-word;"></h4>
+            <p id="lblPrices" style="margin: 0; font-size: 16px; font-weight: bold; color: #1e293b;"></p>
+            <small id="lblCode" style="color: #64748b; font-size: 11px;"></small>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn-print" onclick="window.print()">🖨️ Browser Drucken</button>
+          <button class="btn-export" onclick="exportNiceLabelPDF()">📄 PDF Etikett Exportieren</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let currentItem = null;
+
+    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    scanner.render((text) => {
+      document.getElementById('barcode').value = text;
+      queryArticle();
+    });
+
+    async function queryArticle() {
+      let code = document.getElementById('barcode').value.trim();
+      if (!code) return;
+
+      document.getElementById('result').innerText = "Lade Daten...";
+      document.getElementById('labelPreview').style.display = "none";
+
+      try {
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`, { redirect: "follow" });
+        let data = await res.json();
+
+        if (!data.info || (data.info.name === "Unbekannt" && Object.keys(data.plaetze).length === 0)) {
+          document.getElementById('result').innerHTML = "<p>Kein Artikel gefunden.</p>";
+          return;
+        }
+
+        currentItem = data.info;
+        currentItem.barcode = code;
+
+        let html = `<h3>${data.info.name}</h3>
+                    <p>EK: <b>${data.info.ek_preis} €</b> | VK: <b>${data.info.vk_preis} €</b></p>
+                    <p>Gesamtbestand: <b>${data.info.gesamtbestand} Stück</b></p><ul>`;
+        for (let p in data.plaetze) {
+          html += `<li>Lagerplatz <b>${p}</b>: ${data.plaetze[p]} Stück</li>`;
+        }
+        html += '</ul>';
+        document.getElementById('result').innerHTML = html;
+
+        document.getElementById('lblTitle').innerText = data.info.name;
+        document.getElementById('lblPrices').innerText = `VK: ${data.info.vk_preis} €`;
+        document.getElementById('lblCode').innerText = code;
+
+        const qrContainer = document.getElementById("qrcodeCanvas");
+        qrContainer.innerHTML = "";
+        new QRCode(qrContainer, {
+          text: code,
+          width: 120,
+          height: 120,
+          correctLevel: QRCode.CorrectLevel.H
+        });
+
+        document.getElementById('labelPreview').style.display = "block";
+
+      } catch (err) {
+        document.getElementById('result').innerText = "Fehler beim Laden!";
+      }
+    }
+
+    function exportNiceLabelPDF() {
+      if (!currentItem) return;
+
+      const qrCanvas = document.querySelector("#qrcodeCanvas canvas");
+      const qrImg = document.querySelector("#qrcodeCanvas img");
+      let imgData = null;
+
+      if (qrCanvas) {
+        imgData = qrCanvas.toDataURL("image/png");
+      } else if (qrImg && qrImg.src) {
+        imgData = qrImg.src;
+      }
+
+      if (!imgData) {
+        alert("QR-Code konnte für den PDF-Export noch nicht ausgelesen werden.");
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: [50, 30]
+      });
+
+      doc.addImage(imgData, "PNG", 3, 3, 24, 24);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      const splitTitle = doc.splitTextToSize(currentItem.name, 20);
+      doc.text(splitTitle, 29, 7);
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(`VK: ${currentItem.vk_preis} €`, 29, 21);
+
+      doc.setFontSize(6);
+      doc.setFont("helvetica", "normal");
+      doc.text(currentItem.barcode, 29, 25);
+
+      doc.save(`Etikett_QR_${currentItem.barcode}.pdf`);
+    }
+  </script>
+</body>
+</html>
