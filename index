@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lager Beta - Buchen</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- jsPDF & AutoTable für den Rechnungsdruck -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; }
+    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
+    input, select, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .btn-pdf { background: #059669; margin-top: 10px; }
+    #status { margin-top: 10px; font-weight: bold; }
+    
+    /* Stil für das Target-Auswahlfeld */
+    .scan-target-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+    .scan-target-box label { font-weight: bold; cursor: pointer; color: #1e40af; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="active">Buchen (EK/VK)</a> |
+    <a href="artikel.html">Artikel & Druck</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
+
+  <div class="card">
+    <h2>Ware Buchen (EK / VK)</h2>
+
+    <!-- Ziel des nächsten Scans auswählen -->
+    <div class="scan-target-box">
+      <span>Ziel für Scan:</span>
+      <label><input type="radio" name="scanTarget" value="barcode" checked> 📦 Artikel-Barcode</label>
+      <label><input type="radio" name="scanTarget" value="platz"> 📍 Lagerplatz</label>
+    </div>
+
+    <div id="reader"></div>
+
+    <form id="bookingForm" onsubmit="confirmAndSubmit(event)">
+      <input type="text" id="barcode" placeholder="Barcode" required autofocus>
+      <input type="text" id="name" placeholder="Warenname (optional)">
+      <input type="text" id="platz" placeholder="Lagerplatz (z.B. A1)" required>
+      
+      <select id="typ">
+        <option value="EK">Wareneinkauf (EK)</option>
+        <option value="VK">Warenverkauf (VK)</option>
+      </select>
+
+      <input type="number" id="menge" placeholder="Menge" value="1" min="1" required>
+      <input type="number" step="0.01" id="preis" placeholder="Einzelpreis (€)" required>
+
+      <button type="submit" id="submitBtn">Buchung Ausführen</button>
+    </form>
+
+    <div id="status"></div>
+    <div id="invoiceArea" style="display: none;">
+      <button class="btn-pdf" onclick="generateInvoicePDF()">📄 Rechnung / Quittung als PDF herunterladen</button>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let isProcessing = false;
+    let lastBookingData = null;
+
+    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    
+    scanner.render((text) => {
+      let scanTarget = document.querySelector('input[name="scanTarget"]:checked').value;
+      let targetLabel = scanTarget === 'barcode' ? 'Artikel-Barcode' : 'Lagerplatz';
+
+      let isCorrect = confirm(`Gescannter Code: ${text}\nAls ${targetLabel} eintragen?`);
+      if (isCorrect) {
+        if (scanTarget === 'barcode') {
+          document.getElementById('barcode').value = text;
+          fetchArticleInfo(text);
+          document.querySelector('input[name="scanTarget"][value="platz"]').checked = true;
+        } else {
+          document.getElementById('platz').value = text;
+          document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
+        }
+      }
+    });
+
+    document.getElementById('barcode').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
+    });
+    document.getElementById('platz').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTarget"][value="platz"]').checked = true;
+    });
+
+    document.getElementById('barcode').addEventListener('change', (e) => {
+      fetchArticleInfo(e.target.value.trim());
+    });
+
+    // --- REINES FRONTEND-FETCH MIT NAME & PREIS-VORSCHLAG ---
+    async function fetchArticleInfo(code) {
+      if (!code) return;
+
+      let nameInput = document.getElementById('name');
+      let preisInput = document.getElementById('preis');
+      let status = document.getElementById('status');
+
+      // 1. EIGENES BACKEND (Google Sheet)
+      try {
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`);
+        let data = await res.json();
+        
+        if (data.info && data.info.name && data.info.name !== "Unbekannt") {
+          nameInput.value = data.info.name;
+          updatePriceByTyp(data.info);
+          status.innerText = "";
+          return;
+        }
+      } catch (e) {
+        console.log("Fehler bei eigener Backend-Abfrage:", e);
+      }
+
+      status.innerText = "🔍 Durchsuche externe EAN-Datenbanken...";
+
+      // 2. FALLBACK A: Open Food Facts (Lebensmittel / Supermarkt)
+      try {
+        let extRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
+        let extData = await extRes.json();
+
+        if (extData.status === 1 && extData.product) {
+          let prodName = extData.product.product_name_de || extData.product.product_name || "";
+          if (prodName) {
+            nameInput.value = prodName;
+            
+            if (extData.product.price) {
+              preisInput.value = Number(extData.product.price).toFixed(2);
+              status.innerText = "🌐 Produktname & Preisvorschlag übernommen (Open Food Facts)!";
+            } else {
+              status.innerText = "🌐 Produktname gefunden (Open Food Facts)!";
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("Open Food Facts nicht erreichbar:", e);
+      }
+
+      // 3. FALLBACK B: Open Products Facts (Nicht-Lebensmittel / Werkzeug / Technik)
+      try {
+        let extRes2 = await fetch(`https://world.openproductsfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
+        let extData2 = await extRes2.json();
+
+        if (extData2.status === 1 && extData2.product) {
+          let prodName = extData2.product.product_name_de || extData2.product.product_name || "";
+          if (prodName) {
+            nameInput.value = prodName;
+            
+            if (extData2.product.price) {
+              preisInput.value = Number(extData2.product.price).toFixed(2);
+              status.innerText = "🌐 Produktname & Preisvorschlag übernommen (Open Products Facts)!";
+            } else {
+              status.innerText = "🌐 Produktname gefunden (Open Products Facts)!";
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("Open Products Facts nicht erreichbar:", e);
+      }
+
+      // 4. FALLBACK C: UpcItemDB (Allgemeines Handelsregister)
+      try {
+        let extRes3 = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(code)}`);
+        let extData3 = await extRes3.json();
+
+        if (extData3.items && extData3.items.length > 0) {
+          let item = extData3.items[0];
+          let prodName = item.title;
+          if (prodName) {
+            nameInput.value = prodName;
+
+            let suggestedPrice = item.lowest_recorded_price || item.price || 0;
+            if (suggestedPrice > 0) {
+              preisInput.value = Number(suggestedPrice).toFixed(2);
+              status.innerText = "🌐 Produktname & Richtpreis übernommen (UpcItemDB)!";
+            } else {
+              status.innerText = "🌐 Produktname gefunden (UpcItemDB)!";
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        console.log("UpcItemDB nicht erreichbar:", e);
+      }
+
+      status.innerText = "⚠️ Produkt in keiner externen Datenbank gefunden. Bitte Name und Preis manuell eingeben.";
+    }
+
+    document.getElementById('typ').addEventListener('change', () => {
+      let code = document.getElementById('barcode').value.trim();
+      if (code) fetchArticleInfo(code);
+    });
+
+    function updatePriceByTyp(info) {
+      let typ = document.getElementById('typ').value;
+      if (typ === "EK" && info.ek_preis) document.getElementById('preis').value = info.ek_preis;
+      if (typ === "VK" && info.vk_preis) document.getElementById('preis').value = info.vk_preis;
+    }
+
+    function confirmAndSubmit(e) {
+      e.preventDefault();
+      if (isProcessing) return;
+      
+      let barcode = document.getElementById('barcode').value.trim();
+      let name = document.getElementById('name').value.trim() || "Unbekannt";
+      let platz = document.getElementById('platz').value.trim();
+      let typ = document.getElementById('typ').value;
+      let menge = document.getElementById('menge').value;
+      let preis = document.getElementById('preis').value;
+
+      let msg = `Bitte finale Buchung überprüfen:\n\n` +
+                `Typ: ${typ === "EK" ? "Wareneinkauf (EK)" : "Warenverkauf (VK)"}\n` +
+                `Artikel: ${name} (${barcode})\n` +
+                `Lagerplatz: ${platz}\n` +
+                `Menge: ${menge} Stück\n` +
+                `Einzelpreis: ${preis} €\n` +
+                `Gesamtwert: ${(menge * preis).toFixed(2)} €\n\n` +
+                `Jetzt verbindlich buchen?`;
+
+      if (confirm(msg)) {
+        submitBooking();
+      }
+    }
+
+    async function submitBooking() {
+      isProcessing = true;
+      let btn = document.getElementById('submitBtn');
+      let status = document.getElementById('status');
+      document.getElementById('invoiceArea').style.display = "none";
+      
+      btn.disabled = true;
+      status.innerText = "Sende Buchung...";
+
+      let barcode = document.getElementById('barcode').value.trim();
+      let name = document.getElementById('name').value.trim() || "Unbekannt";
+      let platz = document.getElementById('platz').value.trim();
+      let typ = document.getElementById('typ').value;
+      let menge = document.getElementById('menge').value;
+      let preis = document.getElementById('preis').value;
+
+      let payload = { action: "postBooking", barcode, name, platz, typ, menge, preis };
+
+      try {
+        let res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        let result = await res.json();
+
+        if (result.status === "success") {
+          status.innerText = "✅ Gebucht! ID: " + result.data.id;
+          
+          if (typ === "VK") {
+            lastBookingData = {
+              id: result.data.id,
+              date: new Date().toLocaleDateString('de-DE'),
+              time: new Date().toLocaleTimeString('de-DE'),
+              barcode: barcode,
+              name: name,
+              menge: Number(menge),
+              preis: Number(preis),
+              gesamt: (Number(menge) * Number(preis)).toFixed(2)
+            };
+            document.getElementById('invoiceArea').style.display = "block";
+          }
+
+          document.getElementById('bookingForm').reset();
+          document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
+        } else {
+          status.innerText = "❌ Fehler: " + result.message;
+        }
+      } catch (err) {
+        status.innerText = "❌ Verbindungsfehler!";
+      } finally {
+        isProcessing = false;
+        btn.disabled = false;
+      }
+    }
+
+    function generateInvoicePDF() {
+      if (!lastBookingData) return;
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.text("RECHNUNG / QUITTUNG", 14, 20);
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Beleg-Nr.: ${lastBookingData.id}`, 14, 30);
+      doc.text(`Datum: ${lastBookingData.date} - ${lastBookingData.time}`, 14, 35);
+
+      doc.autoTable({
+        startY: 45,
+        head: [['Pos.', 'Barcode', 'Artikelbeschreibung', 'Menge', 'Einzelpreis', 'Gesamt']],
+        body: [
+          [
+            '1',
+            lastBookingData.barcode,
+            lastBookingData.name,
+            `${lastBookingData.menge} Stk.`,
+            `${lastBookingData.preis.toFixed(2)} €`,
+            `${lastBookingData.gesamt} €`
+          ]
+        ],
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] }
+      });
+
+      let finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Gesamtbetrag: ${lastBookingData.gesamt} EUR`, 140, finalY);
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      doc.text("Vielen Dank für Ihren Einkauf!", 14, finalY + 15);
+
+      doc.save(`Rechnung_${lastBookingData.id}.pdf`);
+    }
+  </script>
+</body>
+</html>
