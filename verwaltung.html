@@ -17,7 +17,7 @@
     label { font-size: 13px; font-weight: bold; color: #475569; display: block; margin-top: 5px; }
     .reader-box { width: 100%; max-width: 300px; margin: 0 auto 10px auto; }
     
-    /* Stil für die Target-Auswahlfelder */
+    /* Target-Auswahlfelder */
     .scan-target-box {
       background: #eff6ff;
       border: 1px solid #bfdbfe;
@@ -84,7 +84,7 @@
       <div id="readerRelocate" class="reader-box"></div>
       <input type="text" id="uBarcode" placeholder="Barcode scannen / eingeben">
       
-      <!-- Anzeige für aktuelle Lagerplätze vor der Umlagerung -->
+      <!-- Anzeige für aktuelle Lagerplätze -->
       <div id="uStockInfo" class="stock-info" style="display:none;"></div>
 
       <input type="text" id="uVon" placeholder="Von Platz (z.B. A1)">
@@ -107,7 +107,7 @@
       <div id="readerAdjust" class="reader-box"></div>
       <input type="text" id="aBarcode" placeholder="Barcode scannen / eingeben">
       
-      <!-- Anzeige für aktuelle Lagerplätze vor der Korrektur -->
+      <!-- Anzeige für aktuelle Lagerplätze -->
       <div id="aStockInfo" class="stock-info" style="display:none;"></div>
 
       <input type="text" id="aPlatz" placeholder="Lagerplatz (z.B. A1)">
@@ -171,7 +171,7 @@
       }
     });
 
-    // Event Listener für manuelle Barcode-Eingaben (z.B. per Hand getippt oder USB-Scanner)
+    // Event Listener für manuelle Eingaben / USB-Scanner
     document.getElementById('uBarcode').addEventListener('change', (e) => {
       fetchCurrentStock(e.target.value.trim(), 'uStockInfo');
     });
@@ -179,7 +179,7 @@
       fetchCurrentStock(e.target.value.trim(), 'aStockInfo');
     });
 
-    // Focus Listener zur dynamischen Ansteuerung des aktiven Radio-Buttons
+    // Focus Listener für Radio-Buttons
     document.getElementById('uBarcode').addEventListener('focus', () => {
       document.querySelector('input[name="scanTargetRelocate"][value="barcode"]').checked = true;
     });
@@ -197,7 +197,7 @@
       document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
     });
 
-    // Abfragefunktion für aktuelle Bestände je Lagerplatz
+    // Abfragefunktion für aktuelle Bestände – identisch zur Logik aus artikel.html
     async function fetchCurrentStock(barcode, containerId) {
       let infoBox = document.getElementById(containerId);
       if (!barcode) {
@@ -209,21 +209,29 @@
       infoBox.innerHTML = "⏳ Suche Lagerorte...";
 
       try {
-        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(barcode)}`);
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(barcode)}`, { redirect: "follow" });
         let data = await res.json();
 
-        if (data.info && data.info.plaetze && data.info.plaetze.length > 0) {
-          let html = `<strong>📍 Aktuelle Lagerorte (${data.info.name}):</strong><ul>`;
-          data.info.plaetze.forEach(p => {
-            html += `<li>Platz: ${p.platz} &rarr; ${p.menge} Stk.</li>`;
-          });
-          html += `</ul>`;
-          infoBox.innerHTML = html;
-        } else if (data.info && data.info.name !== "Unbekannt") {
-          infoBox.innerHTML = `⚠️ <strong>${data.info.name}</strong>: Derzeit an keinem Lagerplatz hinterlegt.`;
-        } else {
-          infoBox.innerHTML = "❌ Artikel nicht im System gefunden.";
+        // Validierung genau wie in artikel.html
+        if (!data.info || (data.info.name === "Unbekannt" && Object.keys(data.plaetze || {}).length === 0)) {
+          infoBox.innerHTML = "❌ Kein Artikel gefunden.";
+          return;
         }
+
+        let hasPlaces = data.plaetze && Object.keys(data.plaetze).length > 0;
+        let html = `<strong>📍 ${data.info.name}</strong> (Gesamt: ${data.info.gesamtbestand || 0} Stk.)`;
+        
+        if (hasPlaces) {
+          html += `<ul>`;
+          for (let p in data.plaetze) {
+            html += `<li>Lagerplatz <b>${p}</b>: ${data.plaetze[p]} Stück</li>`;
+          }
+          html += `</ul>`;
+        } else {
+          html += `<br><small>Derzeit an keinem Lagerplatz hinterlegt.</small>`;
+        }
+
+        infoBox.innerHTML = html;
       } catch (e) {
         infoBox.innerHTML = "❌ Fehler beim Abrufen der Standortdaten.";
       }
@@ -236,7 +244,7 @@
       
       status.innerText = "Lade Artikel...";
       try {
-        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`);
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`, { redirect: "follow" });
         let data = await res.json();
         
         if (data.info && data.info.name !== "Unbekannt") {
@@ -261,7 +269,7 @@
 
       status.innerText = "Speichere Preise...";
       try {
-        let res = await fetch(`${API_URL}?action=updatePrices&barcode=${encodeURIComponent(code)}&ek_preis=${ek}&vk_preis=${vk}`);
+        let res = await fetch(`${API_URL}?action=updatePrices&barcode=${encodeURIComponent(code)}&ek_preis=${ek}&vk_preis=${vk}`, { redirect: "follow" });
         let data = await res.json();
         if (data.status === "success") {
           status.innerText = "✅ Preise erfolgreich aktualisiert!";
@@ -287,7 +295,7 @@
 
       status.innerText = "Buche Um...";
       try {
-        let res = await fetch(`${API_URL}?action=relocateStock&barcode=${encodeURIComponent(code)}&vonPlatz=${encodeURIComponent(von)}&nachPlatz=${encodeURIComponent(nach)}&menge=${menge}`);
+        let res = await fetch(`${API_URL}?action=relocateStock&barcode=${encodeURIComponent(code)}&vonPlatz=${encodeURIComponent(von)}&nachPlatz=${encodeURIComponent(nach)}&menge=${menge}`, { redirect: "follow" });
         let data = await res.json();
         if (data.status === "success") {
           status.innerText = "✅ Erfolgreich umgelagert!";
@@ -318,7 +326,7 @@
 
       status.innerText = "Korrigiere Bestand...";
       try {
-        let res = await fetch(`${API_URL}?action=adjustStock&barcode=${encodeURIComponent(code)}&platz=${encodeURIComponent(platz)}&neueMenge=${menge}`);
+        let res = await fetch(`${API_URL}?action=adjustStock&barcode=${encodeURIComponent(code)}&platz=${encodeURIComponent(platz)}&neueMenge=${menge}`, { redirect: "follow" });
         let data = await res.json();
         
         if (data.status === "success") {
