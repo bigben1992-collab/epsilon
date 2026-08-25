@@ -16,6 +16,19 @@
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
     label { font-size: 13px; font-weight: bold; color: #475569; display: block; margin-top: 5px; }
     .reader-box { width: 100%; max-width: 300px; margin: 0 auto 10px auto; }
+    
+    /* Stil für die Target-Auswahlfelder */
+    .scan-target-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+    .scan-target-box label { font-weight: bold; cursor: pointer; color: #1e40af; margin-top: 0; }
   </style>
 </head>
 <body>
@@ -48,6 +61,14 @@
     <!-- Interne Umlagerung -->
     <div class="card">
       <h3>Umlagerung (Intern)</h3>
+      
+      <div class="scan-target-box">
+        <span>Ziel für Scan:</span>
+        <label><input type="radio" name="scanTargetRelocate" value="barcode" checked> 📦 Barcode</label>
+        <label><input type="radio" name="scanTargetRelocate" value="von"> 📍 Von Platz</label>
+        <label><input type="radio" name="scanTargetRelocate" value="nach"> 📍 Nach Platz</label>
+      </div>
+
       <div id="readerRelocate" class="reader-box"></div>
       <input type="text" id="uBarcode" placeholder="Barcode scannen / eingeben">
       <input type="text" id="uVon" placeholder="Von Platz (z.B. A1)">
@@ -60,6 +81,13 @@
     <!-- Bestandsanpassung / Inventur -->
     <div class="card">
       <h3>Bestand anpassen (Inventur/Korrektur)</h3>
+
+      <div class="scan-target-box">
+        <span>Ziel für Scan:</span>
+        <label><input type="radio" name="scanTargetAdjust" value="barcode" checked> 📦 Barcode</label>
+        <label><input type="radio" name="scanTargetAdjust" value="platz"> 📍 Lagerplatz</label>
+      </div>
+
       <div id="readerAdjust" class="reader-box"></div>
       <input type="text" id="aBarcode" placeholder="Barcode scannen / eingeben">
       <input type="text" id="aPlatz" placeholder="Lagerplatz (z.B. A1)">
@@ -75,20 +103,68 @@
     // Scanner 1: Preise
     const scannerPrice = new Html5QrcodeScanner("readerPrice", { fps: 10, qrbox: 180 });
     scannerPrice.render((text) => {
-      document.getElementById('pBarcode').value = text;
-      loadArticlePrices();
+      let isCorrect = confirm(`Gescannter Code: ${text}\nAls Artikel-Barcode eintragen?`);
+      if (isCorrect) {
+        document.getElementById('pBarcode').value = text;
+        loadArticlePrices();
+      }
     });
 
     // Scanner 2: Umlagerung
     const scannerRelocate = new Html5QrcodeScanner("readerRelocate", { fps: 10, qrbox: 180 });
     scannerRelocate.render((text) => {
-      document.getElementById('uBarcode').value = text;
+      let scanTarget = document.querySelector('input[name="scanTargetRelocate"]:checked').value;
+      let targetLabel = scanTarget === 'barcode' ? 'Artikel-Barcode' : (scanTarget === 'von' ? 'Von-Lagerplatz' : 'Nach-Lagerplatz');
+
+      let isCorrect = confirm(`Gescannter Code: ${text}\nAls ${targetLabel} eintragen?`);
+      if (isCorrect) {
+        if (scanTarget === 'barcode') {
+          document.getElementById('uBarcode').value = text;
+          document.querySelector('input[name="scanTargetRelocate"][value="von"]').checked = true;
+        } else if (scanTarget === 'von') {
+          document.getElementById('uVon').value = text;
+          document.querySelector('input[name="scanTargetRelocate"][value="nach"]').checked = true;
+        } else {
+          document.getElementById('uNach').value = text;
+          document.querySelector('input[name="scanTargetRelocate"][value="barcode"]').checked = true;
+        }
+      }
     });
 
     // Scanner 3: Bestandsanpassung
     const scannerAdjust = new Html5QrcodeScanner("readerAdjust", { fps: 10, qrbox: 180 });
     scannerAdjust.render((text) => {
-      document.getElementById('aBarcode').value = text;
+      let scanTarget = document.querySelector('input[name="scanTargetAdjust"]:checked').value;
+      let targetLabel = scanTarget === 'barcode' ? 'Artikel-Barcode' : 'Lagerplatz';
+
+      let isCorrect = confirm(`Gescannter Code: ${text}\nAls ${targetLabel} eintragen?`);
+      if (isCorrect) {
+        if (scanTarget === 'barcode') {
+          document.getElementById('aBarcode').value = text;
+          document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
+        } else {
+          document.getElementById('aPlatz').value = text;
+          document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
+        }
+      }
+    });
+
+    // Focus Listener zur dynamischen Ansteuerung des aktiven Radio-Buttons
+    document.getElementById('uBarcode').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTargetRelocate"][value="barcode"]').checked = true;
+    });
+    document.getElementById('uVon').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTargetRelocate"][value="von"]').checked = true;
+    });
+    document.getElementById('uNach').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTargetRelocate"][value="nach"]').checked = true;
+    });
+
+    document.getElementById('aBarcode').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
+    });
+    document.getElementById('aPlatz').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
     });
 
     async function loadArticlePrices() {
@@ -157,6 +233,7 @@
           document.getElementById('uVon').value = "";
           document.getElementById('uNach').value = "";
           document.getElementById('uMenge').value = "1";
+          document.querySelector('input[name="scanTargetRelocate"][value="barcode"]').checked = true;
         } else {
           status.innerText = "❌ Fehler: " + data.message;
         }
@@ -186,6 +263,7 @@
           document.getElementById('aBarcode').value = "";
           document.getElementById('aPlatz').value = "";
           document.getElementById('aMenge').value = "";
+          document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
         } else {
           status.innerText = "❌ Fehler: " + data.message;
         }
