@@ -29,6 +29,18 @@
       justify-content: space-around;
     }
     .scan-target-box label { font-weight: bold; cursor: pointer; color: #1e40af; margin-top: 0; }
+
+    /* Info-Box für aktuelle Bestände & Plätze */
+    .stock-info {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .stock-info ul { margin: 4px 0 0 0; padding-left: 20px; }
+    .stock-info li { font-weight: bold; color: #0f172a; }
   </style>
 </head>
 <body>
@@ -71,6 +83,10 @@
 
       <div id="readerRelocate" class="reader-box"></div>
       <input type="text" id="uBarcode" placeholder="Barcode scannen / eingeben">
+      
+      <!-- Anzeige für aktuelle Lagerplätze vor der Umlagerung -->
+      <div id="uStockInfo" class="stock-info" style="display:none;"></div>
+
       <input type="text" id="uVon" placeholder="Von Platz (z.B. A1)">
       <input type="text" id="uNach" placeholder="Nach Platz (z.B. B2)">
       <input type="number" id="uMenge" placeholder="Menge" value="1" min="1">
@@ -90,6 +106,10 @@
 
       <div id="readerAdjust" class="reader-box"></div>
       <input type="text" id="aBarcode" placeholder="Barcode scannen / eingeben">
+      
+      <!-- Anzeige für aktuelle Lagerplätze vor der Korrektur -->
+      <div id="aStockInfo" class="stock-info" style="display:none;"></div>
+
       <input type="text" id="aPlatz" placeholder="Lagerplatz (z.B. A1)">
       <input type="number" id="aMenge" placeholder="Neuer Ist-Bestand (Soll)" min="0">
       <button class="btn-warn" onclick="executeAdjustment()">Bestand Überschreiben</button>
@@ -120,6 +140,7 @@
       if (isCorrect) {
         if (scanTarget === 'barcode') {
           document.getElementById('uBarcode').value = text;
+          fetchCurrentStock(text, 'uStockInfo');
           document.querySelector('input[name="scanTargetRelocate"][value="von"]').checked = true;
         } else if (scanTarget === 'von') {
           document.getElementById('uVon').value = text;
@@ -141,12 +162,21 @@
       if (isCorrect) {
         if (scanTarget === 'barcode') {
           document.getElementById('aBarcode').value = text;
+          fetchCurrentStock(text, 'aStockInfo');
           document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
         } else {
           document.getElementById('aPlatz').value = text;
           document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
         }
       }
+    });
+
+    // Event Listener für manuelle Barcode-Eingaben (z.B. per Hand getippt oder USB-Scanner)
+    document.getElementById('uBarcode').addEventListener('change', (e) => {
+      fetchCurrentStock(e.target.value.trim(), 'uStockInfo');
+    });
+    document.getElementById('aBarcode').addEventListener('change', (e) => {
+      fetchCurrentStock(e.target.value.trim(), 'aStockInfo');
     });
 
     // Focus Listener zur dynamischen Ansteuerung des aktiven Radio-Buttons
@@ -166,6 +196,38 @@
     document.getElementById('aPlatz').addEventListener('focus', () => {
       document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
     });
+
+    // Abfragefunktion für aktuelle Bestände je Lagerplatz
+    async function fetchCurrentStock(barcode, containerId) {
+      let infoBox = document.getElementById(containerId);
+      if (!barcode) {
+        infoBox.style.display = "none";
+        return;
+      }
+
+      infoBox.style.display = "block";
+      infoBox.innerHTML = "⏳ Suche Lagerorte...";
+
+      try {
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(barcode)}`);
+        let data = await res.json();
+
+        if (data.info && data.info.plaetze && data.info.plaetze.length > 0) {
+          let html = `<strong>📍 Aktuelle Lagerorte (${data.info.name}):</strong><ul>`;
+          data.info.plaetze.forEach(p => {
+            html += `<li>Platz: ${p.platz} &rarr; ${p.menge} Stk.</li>`;
+          });
+          html += `</ul>`;
+          infoBox.innerHTML = html;
+        } else if (data.info && data.info.name !== "Unbekannt") {
+          infoBox.innerHTML = `⚠️ <strong>${data.info.name}</strong>: Derzeit an keinem Lagerplatz hinterlegt.`;
+        } else {
+          infoBox.innerHTML = "❌ Artikel nicht im System gefunden.";
+        }
+      } catch (e) {
+        infoBox.innerHTML = "❌ Fehler beim Abrufen der Standortdaten.";
+      }
+    }
 
     async function loadArticlePrices() {
       let code = document.getElementById('pBarcode').value.trim();
@@ -233,6 +295,7 @@
           document.getElementById('uVon').value = "";
           document.getElementById('uNach').value = "";
           document.getElementById('uMenge').value = "1";
+          document.getElementById('uStockInfo').style.display = "none";
           document.querySelector('input[name="scanTargetRelocate"][value="barcode"]').checked = true;
         } else {
           status.innerText = "❌ Fehler: " + data.message;
@@ -263,6 +326,7 @@
           document.getElementById('aBarcode').value = "";
           document.getElementById('aPlatz').value = "";
           document.getElementById('aMenge').value = "";
+          document.getElementById('aStockInfo').style.display = "none";
           document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
         } else {
           status.innerText = "❌ Fehler: " + data.message;
