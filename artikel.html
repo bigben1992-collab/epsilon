@@ -233,7 +233,7 @@
       try {
         const dataUrl = await generateLabelImage();
 
-        // 1. Erstelle das PNG-Bild und lade es automatisch herunter
+        // 1. PNG-Bild erstellen und Herunterladen auslösen
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `Etikett_${currentItem.barcode}.png`;
@@ -241,13 +241,22 @@
         a.click();
         document.body.removeChild(a);
 
-        // 2. Öffne gezielt die auf Android installierte Labelnize-App
+        // 2. Erzwungener App-Aufruf über android-app:// Protokoll
         setTimeout(() => {
-          const appPackage = "com.labelnize.printer";
-          const androidIntent = `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${appPackage};end`;
+          // Direktes Deep-Linking Protokoll ohne Store-Weiterleitung
+          const appUrl = "android-app://com.labelnize.printer";
           
-          window.location.href = androidIntent;
-        }, 500);
+          // Fallback über ein unsichtbares iframe
+          const iframe = document.createElement("iframe");
+          iframe.style.display = "none";
+          iframe.src = appUrl;
+          document.body.appendChild(iframe);
+
+          // Alternativer direkter Umleitungsversuch
+          setTimeout(() => {
+            window.location.href = appUrl;
+          }, 100);
+        }, 600);
 
       } catch (err) {
         console.error("Fehler beim Erstellen des Bildes:", err);
