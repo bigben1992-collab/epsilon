@@ -18,14 +18,13 @@
 </head>
 <body>
   <nav>
-  <a href="index.html">🏠 Menü</a> |
-  <a href="buchen.html">Buchen (EK/VK)</a> |
-  <a href="artikel.html">Artikel & Druck</a> |
-  <a href="platz.html">Platzabfrage</a> |
-  <a href="bilanz.html">Bilanz</a> |
-  <a href="verwaltung.html">Verwaltung</a>
-</nav>
-
+    <a href="index.html">🏠 Menü</a> |
+    <a href="buchen.html">Buchen (EK/VK)</a> |
+    <a href="artikel.html">Artikel & Druck</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
 
   <div class="card">
     <h2>Finanz- & Gewinnübersicht</h2>
@@ -45,6 +44,11 @@
       <div class="box">
         <h3>Aktueller Lagerwert (EK)</h3>
         <p id="stockVal">0,00 €</p>
+      </div>
+      <!-- NEUE KACHEL FÜR VK-LAGERWERT -->
+      <div class="box">
+        <h3>Aktueller Lagerwert (VK)</h3>
+        <p id="stockVkVal">0,00 €</p>
       </div>
     </div>
   </div>
@@ -75,6 +79,8 @@
           }
           
           document.getElementById('stockVal').innerText = formatEUR(result.data.lagerwert);
+          // Zuweisung des VK-Lagerwerts
+          document.getElementById('stockVkVal').innerText = formatEUR(result.data.lagerwertVK);
         }
       } catch (err) {
         console.error("Fehler beim Laden der Bilanzdaten:", err);
@@ -85,4 +91,3 @@
   </script>
 </body>
 </html>
-
