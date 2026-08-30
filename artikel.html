@@ -82,7 +82,7 @@
         <div class="btn-group">
           <button class="btn-print" onclick="window.print()">🖨️ Browser Drucken</button>
           <button class="btn-export" onclick="exportNiceLabelPDF()">📄 PDF Etikett Exportieren</button>
-          <button class="btn-labelnize" onclick="printViaLabelnize()">🖼️ Bild für Labelnize erstellen</button>
+          <button class="btn-labelnize" onclick="printViaLabelnize()">📱 Bild für Labelnize erstellen & öffnen</button>
         </div>
       </div>
     </div>
@@ -220,10 +220,7 @@
         ctx.fillStyle = '#475569';
         ctx.fillText(currentItem.barcode, 280, 220);
 
-        canvas.toBlob((blob) => {
-          const file = new File([blob], `Etikett_${currentItem.barcode}.png`, { type: 'image/png' });
-          resolve({ file, dataUrl: canvas.toDataURL("image/png") });
-        }, 'image/png');
+        resolve(canvas.toDataURL("image/png"));
       });
     }
 
@@ -234,9 +231,9 @@
       }
 
       try {
-        const { file, dataUrl } = await generateLabelImage();
+        const dataUrl = await generateLabelImage();
 
-        // Download des Bildes auslösen (erscheint in deinen Downloads/Galerie)
+        // 1. PNG-Bild in den Download-Ordner speichern
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `Etikett_${currentItem.barcode}.png`;
@@ -244,16 +241,14 @@
         a.click();
         document.body.removeChild(a);
 
-        // Versucht zusätzlich das Teilen-Menü für Bilddateien zu öffnen
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'Etikett Drucken',
-            text: currentItem.name
-          });
-        }
+        // 2. Direkt die Labelnize-App per Intent öffnen
+        setTimeout(() => {
+          const androidIntent = "intent:#Intent;package=com.labelnize.printer;end";
+          window.location.href = androidIntent;
+        }, 500);
+
       } catch (err) {
-        console.error("Fehler beim Erstellen des Bild-Etiketts:", err);
+        console.error("Fehler beim Erstellen des Bildes:", err);
       }
     }
   </script>
