@@ -14,6 +14,13 @@
     .box h3 { margin: 0 0 10px 0; font-size: 14px; color: #64748b; }
     .box p { margin: 0; font-size: 22px; font-weight: bold; color: #0f172a; }
     .profit { color: #16a34a !important; }
+
+    /* Stile für den Filterbereich */
+    .filter-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; background: #f1f5f9; padding: 10px; border-radius: 6px; }
+    .filter-bar label { font-size: 14px; font-weight: bold; color: #334155; }
+    .filter-bar input[type="date"] { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .filter-bar button { padding: 6px 12px; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .filter-bar button:hover { background: #1d4ed8; }
   </style>
 </head>
 <body>
@@ -28,6 +35,17 @@
 
   <div class="card">
     <h2>Finanz- & Gewinnübersicht</h2>
+
+    <!-- NEU: Zeitraums-Filter -->
+    <div class="filter-bar">
+      <label for="dateVon">Von:</label>
+      <input type="date" id="dateVon">
+      <label for="dateBis">Bis:</label>
+      <input type="date" id="dateBis">
+      <button onclick="loadFinance()">Filter anwenden</button>
+      <button onclick="resetFilter()" style="background: #64748b;">Zurücksetzen</button>
+    </div>
+
     <div class="grid">
       <div class="box">
         <h3>Gesamter Wareneinkauf</h3>
@@ -45,7 +63,6 @@
         <h3>Aktueller Lagerwert (EK)</h3>
         <p id="stockVal">0,00 €</p>
       </div>
-      <!-- NEUE KACHEL FÜR VK-LAGERWERT -->
       <div class="box">
         <h3>Aktueller Lagerwert (VK)</h3>
         <p id="stockVkVal">0,00 €</p>
@@ -62,7 +79,14 @@
 
     async function loadFinance() {
       try {
-        let res = await fetch(`${API_URL}?action=getFinance`, { redirect: "follow" });
+        const von = document.getElementById('dateVon').value;
+        const bis = document.getElementById('dateBis').value;
+
+        let query = `${API_URL}?action=getFinance`;
+        if (von) query += `&von=${encodeURIComponent(von)}`;
+        if (bis) query += `&bis=${encodeURIComponent(bis)}`;
+
+        let res = await fetch(query, { redirect: "follow" });
         let result = await res.json();
         
         if (result.status === "success") {
@@ -79,12 +103,17 @@
           }
           
           document.getElementById('stockVal').innerText = formatEUR(result.data.lagerwert);
-          // Zuweisung des VK-Lagerwerts
           document.getElementById('stockVkVal').innerText = formatEUR(result.data.lagerwertVK);
         }
       } catch (err) {
         console.error("Fehler beim Laden der Bilanzdaten:", err);
       }
+    }
+
+    function resetFilter() {
+      document.getElementById('dateVon').value = '';
+      document.getElementById('dateBis').value = '';
+      loadFinance();
     }
 
     loadFinance();
