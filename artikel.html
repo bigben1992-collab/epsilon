@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -9,6 +7,7 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -19,6 +18,7 @@
     button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
     .btn-print { background: #059669; }
     .btn-export { background: #4f46e5; }
+    .btn-png { background: #d97706; }
     ul { list-style: none; padding: 0; }
     li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
     
@@ -41,7 +41,8 @@
       background: #fff;
     }
     .label-details { text-align: left; flex: 1; }
-    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+    .btn-group button { flex: 1; min-width: 140px; }
 
     @media print {
       body * { visibility: hidden; }
@@ -53,14 +54,13 @@
 </head>
 <body>
   <nav>
-  <a href="index.html">🏠 Menü</a> |
-  <a href="buchen.html">Buchen (EK/VK)</a> |
-  <a href="artikel.html">Artikel & Druck</a> |
-  <a href="platz.html">Platzabfrage</a> |
-  <a href="bilanz.html">Bilanz</a> |
-  <a href="verwaltung.html">Verwaltung</a>
-</nav>
-
+    <a href="index.html">🏠 Menü</a> |
+    <a href="buchen.html">Buchen (EK/VK)</a> |
+    <a href="artikel.html">Artikel & Druck</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
 
   <div class="card">
     <h2>Artikelabfrage & Druckansicht</h2>
@@ -73,7 +73,7 @@
     
     <div id="printArea">
       <div id="labelPreview">
-        <div class="label-container">
+        <div class="label-container" id="labelCard">
           <div id="qrcodeCanvas"></div>
           <div class="label-details">
             <h4 id="lblTitle" style="margin: 0 0 5px 0; font-size: 14px; word-break: break-word;"></h4>
@@ -84,6 +84,7 @@
         <div class="btn-group">
           <button class="btn-print" onclick="window.print()">🖨️ Browser Drucken</button>
           <button class="btn-export" onclick="exportNiceLabelPDF()">📄 PDF Etikett Exportieren</button>
+          <button class="btn-png" onclick="exportPNG()">🖼️ PNG Etikett Herunterladen</button>
         </div>
       </div>
     </div>
@@ -187,6 +188,26 @@
       doc.text(currentItem.barcode, 29, 25);
 
       doc.save(`Etikett_QR_${currentItem.barcode}.pdf`);
+    }
+
+    async function exportPNG() {
+      if (!currentItem) return;
+
+      const labelCard = document.getElementById('labelCard');
+
+      try {
+        const canvas = await html2canvas(labelCard, { scale: 3 });
+        const image = canvas.toDataURL("image/png");
+
+        const downloadLink = document.createElement("a");
+        downloadLink.href = image;
+        downloadLink.download = `Etikett_${currentItem.barcode}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      } catch (err) {
+        alert("Fehler beim Erstellen des PNGs!");
+      }
     }
   </script>
 </body>
