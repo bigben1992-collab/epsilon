@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lager Beta - Preise</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; max-width: 500px; margin: 0 auto; }
+    input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+    button { background: #d97706; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    label { font-size: 13px; font-weight: bold; color: #475569; display: block; margin-top: 5px; }
+    .reader-box { width: 100%; max-width: 300px; margin: 0 auto 10px auto; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html">🏠 Menü</a> | <a href="buchen.html">Buchen</a> | <a href="preise.html">Preise</a> | <a href="umlagern.html">Umlagern</a> | <a href="inventur.html">Inventur</a>
+  </nav>
+
+  <div class="card">
+    <h3>💶 Preise anpassen</h3>
+    <div id="readerPrice" class="reader-box"></div>
+    <input type="text" id="pBarcode" placeholder="Barcode scannen / eingeben">
+    <button style="background:#2563eb;" onclick="loadArticlePrices()">Artikel Laden</button>
+    
+    <div id="priceForm" style="display:none; margin-top:10px;">
+      <label>EK-Preis (€):</label>
+      <input type="number" step="0.01" id="pEk">
+      <label>VK-Preis (€):</label>
+      <input type="number" step="0.01" id="pVk">
+      <button onclick="savePrices()">Preise Aktualisieren</button>
+    </div>
+    <p id="pStatus"></p>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+
+    const scannerPrice = new Html5QrcodeScanner("readerPrice", { fps: 10, qrbox: 180 });
+    scannerPrice.render((text) => {
+      if (confirm(`Gescannter Code: ${text}\nAls Artikel-Barcode eintragen?`)) {
+        document.getElementById('pBarcode').value = text;
+        loadArticlePrices();
+      }
+    });
+
+    async function loadArticlePrices() {
+      let code = document.getElementById('pBarcode').value.trim();
+      let status = document.getElementById('pStatus');
+      if (!code) return;
+      status.innerText = "Lade Artikel...";
+      try {
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`, { redirect: "follow" });
+        let data = await res.json();
+        if (data.info && data.info.name !== "Unbekannt") {
+          document.getElementById('pEk').value = data.info.ek_preis;
+          document.getElementById('pVk').value = data.info.vk_preis;
+          document.getElementById('priceForm').style.display = "block";
+          status.innerText = "Artikel: " + data.info.name;
+        } else {
+          status.innerText = "❌ Artikel nicht gefunden.";
+          document.getElementById('priceForm').style.display = "none";
+        }
+      } catch (err) { status.innerText = "❌ Fehler beim Laden!"; }
+    }
+
+    async function savePrices() {
+      let code = document.getElementById('pBarcode').value.trim();
+      let ek = document.getElementById('pEk').value;
+      let vk = document.getElementById('pVk').value;
+      let status = document.getElementById('pStatus');
+      status.innerText = "Speichere Preise...";
+      try {
+        let res = await fetch(`${API_URL}?action=updatePrices&barcode=${encodeURIComponent(code)}&ek_preis=${ek}&vk_preis=${vk}`, { redirect: "follow" });
+        let data = await res.json();
+        status.innerText = data.status === "success" ? "✅ Preise erfolgreich aktualisiert!" : "❌ Fehler: " + data.message;
+      } catch (err) { status.innerText = "❌ Fehler beim Speichern!"; }
+    }
+  </script>
+</body>
+</html>
