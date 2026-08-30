@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lager Beta - Umlagerung</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; max-width: 500px; margin: 0 auto; }
+    input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    .reader-box { width: 100%; max-width: 300px; margin: 0 auto 10px auto; }
+    .scan-target-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-around; }
+    .scan-target-box label { font-weight: bold; cursor: pointer; color: #1e40af; }
+    .stock-info { background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 6px; margin: 8px 0; font-size: 13px; }
+    .stock-info ul { margin: 4px 0 0 0; padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html">🏠 Menü</a> | <a href="buchen.html">Buchen</a> | <a href="preise.html">Preise</a> | <a href="umlagern.html">Umlagern</a> | <a href="inventur.html">Inventur</a>
+  </nav>
+
+  <div class="card">
+    <h3>🔄 Umlagerung (Intern)</h3>
+    <div class="scan-target-box">
+      <span>Ziel für Scan:</span>
+      <label><input type="radio" name="scanTargetRelocate" value="barcode" checked> 📦 Barcode</label>
+      <label><input type="radio" name="scanTargetRelocate" value="von"> 📍 Von</label>
+      <label><input type="radio" name="scanTargetRelocate" value="nach"> 📍 Nach</label>
+    </div>
+
+    <div id="readerRelocate" class="reader-box"></div>
+    <input type="text" id="uBarcode" placeholder="Barcode scannen / eingeben">
+    <div id="uStockInfo" class="stock-info" style="display:none;"></div>
+    <input type="text" id="uVon" placeholder="Von Platz (z.B. A1)">
+    <input type="text" id="uNach" placeholder="Nach Platz (z.B. B2)">
+    <input type="number" id="uMenge" placeholder="Menge" value="1" min="1">
+    <button onclick="executeRelocation()">Umlagern</button>
+    <p id="uStatus"></p>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+
+    const scannerRelocate = new Html5QrcodeScanner("readerRelocate", { fps: 10, qrbox: 180 });
+    scannerRelocate.render((text) => {
+      let scanTarget = document.querySelector('input[name="scanTargetRelocate"]:checked').value;
+      let targetLabel = scanTarget === 'barcode' ? 'Artikel-Barcode' : (scanTarget === 'von' ? 'Von-Lagerplatz' : 'Nach-Lagerplatz');
+
+      if (confirm(`Gescannter Code: ${text}\nAls ${targetLabel} eintragen?`)) {
+        if (scanTarget === 'barcode') {
+          document.getElementById('uBarcode').value = text;
+          fetchCurrentStock(text);
+          document.querySelector('input[name="scanTargetRelocate"][value="von"]').checked = true;
+        } else if (scanTarget === 'von') {
+          document.getElementById('uVon').value = text;
+          document.querySelector('input[name="scanTargetRelocate"][value="nach"]').checked = true;
+        } else {
+          document.getElementById('uNach').value = text;
+          document.querySelector('input[name="scanTargetRelocate"][value="barcode"]').checked = true;
+        }
+      }
+    });
+
+    document.getElementById('uBarcode').addEventListener('change', (e) => fetchCurrentStock(e.target.value.trim()));
+    document.getElementById('uBarcode').addEventListener('focus', () => { document.querySelector('input[name="scanTargetRelocate"][value="barcode"]').checked = true; });
+    document.getElementById('uVon').addEventListener('focus', () => { document.querySelector('input[name="scanTargetRelocate"][value="von"]').checked = true; });
+    document.getElementById('uNach').addEventListener('focus', () => { document.querySelector('input[name="scanTargetRelocate"][value="nach"]').checked = true; });
+
+    async function fetchCurrentStock(barcode) {
+      let infoBox = document.getElementById('uStockInfo');
+      if (!barcode) { infoBox.style.display = "none"; return; }
+      infoBox.style.display = "block";
+      infoBox.innerHTML = "⏳ Suche Lagerorte...";
+      try {
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(barcode)}`, { redirect: "follow" });
+        let data = await res.json();
+        if (!data.info || (data.info.name === "Unbekannt" && Object.keys(data.plaetze || {}).length === 0)) {
+          infoBox.innerHTML = "❌ Kein Artikel gefunden.";
+          return;
+        }
+        let html = `<strong>📍 ${data.info.name}</strong> (Gesamt: ${data.info.gesamtbestand || 0} Stk.)<ul>`;
+        for (let p in data.plaetze) { html += `<li>Lagerplatz <b>${p}</b>: ${data.plaetze[p]} Stück</li>`; }
+        infoBox.innerHTML = html + `</ul>`;
+      } catch (e) { infoBox.innerHTML = "❌ Fehler beim Abrufen der Standortdaten."; }
+    }
+
+    async function executeRelocation() {
+      let code = document.getElementById('uBarcode').value.trim();
+      let von = document.getElementById('uVon').value.trim();
+      let nach = document.getElementById('uNach').value.trim();
+      let menge = document.getElementById('uMenge').value;
+      let status = document.getElementById('uStatus');
+      if (!code || !von || !nach || !menge) { status.innerText = "Bitte alle Felder ausfüllen."; return; }
+      status.innerText = "Buche Um...";
+      try {
+        let res = await fetch(`${API_URL}?action=relocateStock&barcode=${encodeURIComponent(code)}&vonPlatz=${encodeURIComponent(von)}&nachPlatz=${encodeURIComponent(nach)}&menge=${menge}`, { redirect: "follow" });
+        let data = await res.json();
+        if (data.status === "success") {
+          status.innerText = "✅ Erfolgreich umgelagert!";
+          document.getElementById('uBarcode').value = "";
+          document.getElementById('uVon').value = "";
+          document.getElementById('uNach').value = "";
+          document.getElementById('uMenge').value = "1";
+          document.getElementById('uStockInfo').style.display = "none";
+        } else { status.innerText = "❌ Fehler: " + data.message; }
+      } catch (err) { status.innerText = "❌ Fehler bei der Umbuchung!"; }
+    }
+  </script>
+</body>
+</html>
