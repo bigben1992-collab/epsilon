@@ -31,6 +31,25 @@
       justify-content: space-around;
     }
     .scan-target-box label { font-weight: bold; cursor: pointer; color: #1e40af; }
+
+    /* Infobox & UVP Button Stile */
+    #productInfoBox {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 12px;
+      border-radius: 6px;
+      margin: 10px 0;
+      display: none;
+    }
+    .btn-uvp {
+      background: #16a34a;
+      color: white;
+      font-size: 12px;
+      padding: 5px 10px;
+      margin-top: 8px;
+      width: auto;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -67,6 +86,15 @@
       <input type="number" id="menge" placeholder="Menge" value="1" min="1" required>
       <input type="number" step="0.01" id="preis" placeholder="Einzelpreis (€)" required>
 
+      <!-- Infobox für Zusatzdaten (UVP, Marke, etc.) -->
+      <div id="productInfoBox">
+        <h4 style="margin: 0 0 5px 0; color: #166534;">ℹ️ Zusätzliche Produkt-Infos</h4>
+        <div id="infoContent" style="font-size: 13px; color: #15803d;"></div>
+        <button type="button" id="btnApplyUvp" class="btn-uvp" style="display:none;" onclick="applyUvpPrice()">
+          🏷️ UVP als Preis übernehmen
+        </button>
+      </div>
+
       <button type="submit" id="submitBtn">Buchung Ausführen</button>
     </form>
 
@@ -80,6 +108,7 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
     let isProcessing = false;
     let lastBookingData = null;
+    let detectedUvp = null;
 
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
@@ -117,7 +146,17 @@
       let nameInput = document.getElementById('name');
       let preisInput = document.getElementById('preis');
       let status = document.getElementById('status');
+      let infoBox = document.getElementById('productInfoBox');
+      let infoContent = document.getElementById('infoContent');
+      let btnUvp = document.getElementById('btnApplyUvp');
 
+      // Reset
+      infoBox.style.display = "none";
+      btnUvp.style.display = "none";
+      infoContent.innerHTML = "";
+      detectedUvp = null;
+
+      // 1. EIGENES BACKEND
       try {
         let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`);
         let data = await res.json();
@@ -134,59 +173,66 @@
 
       status.innerText = "🔍 Durchsuche externe EAN-Datenbanken...";
 
+      // 2. Open Food Facts
       try {
         let extRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
         let extData = await extRes.json();
 
         if (extData.status === 1 && extData.product) {
-          let prodName = extData.product.product_name_de || extData.product.product_name || "";
+          let p = extData.product;
+          let prodName = p.product_name_de || p.product_name || "";
           if (prodName) {
             nameInput.value = prodName;
-            
-            if (extData.product.price) {
-              preisInput.value = Number(extData.product.price).toFixed(2);
-              status.innerText = "🌐 Produktname & Preisvorschlag übernommen (Open Food Facts)!";
-            } else {
-              status.innerText = "🌐 Produktname gefunden (Open Food Facts)!";
+            status.innerText = "🌐 Produktname gefunden (Open Food Facts)!";
+
+            let details = [];
+            if (p.brands) details.push(`<b>Marke:</b> ${p.brands}`);
+            if (p.quantity) details.push(`<b>Menge:</b> ${p.quantity}`);
+            if (p.nutriscore_grade) details.push(`<b>Nutri-Score:</b> ${p.nutriscore_grade.toUpperCase()}`);
+
+            if (details.length > 0) {
+              infoContent.innerHTML = details.join(" | ");
+              infoBox.style.display = "block";
             }
             return;
           }
         }
-      } catch (e) {
-        console.log("Open Food Facts nicht erreichbar:", e);
-      }
+      } catch (e) { console.log("OFF Fehler:", e); }
 
+      // 3. Open Products Facts
       try {
         let extRes2 = await fetch(`https://world.openproductsfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
         let extData2 = await extRes2.json();
 
         if (extData2.status === 1 && extData2.product) {
-          let prodName = extData2.product.product_name_de || extData2.product.product_name || "";
+          let p = extData2.product;
+          let prodName = p.product_name_de || p.product_name || "";
           if (prodName) {
             nameInput.value = prodName;
-            
-            if (extData2.product.price) {
-              preisInput.value = Number(extData2.product.price).toFixed(2);
-              status.innerText = "🌐 Produktname & Preisvorschlag übernommen (Open Products Facts)!";
-            } else {
-              status.innerText = "🌐 Produktname gefunden (Open Products Facts)!";
+            status.innerText = "🌐 Produktname gefunden (Open Products Facts)!";
+
+            let details = [];
+            if (p.brands) details.push(`<b>Marke:</b> ${p.brands}`);
+            if (p.categories) details.push(`<b>Kategorie:</b> ${p.categories.split(',')[0]}`);
+
+            if (details.length > 0) {
+              infoContent.innerHTML = details.join(" | ");
+              infoBox.style.display = "block";
             }
             return;
           }
         }
-      } catch (e) {
-        console.log("Open Products Facts nicht erreichbar:", e);
-      }
+      } catch (e) { console.log("OPF Fehler:", e); }
 
+      // 4. UpcItemDB (UVP Support)
       try {
         let extRes3 = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(code)}`);
         let extData3 = await extRes3.json();
 
         if (extData3.items && extData3.items.length > 0) {
           let item = extData3.items[0];
-          let prodName = item.title;
-          if (prodName) {
-            nameInput.value = prodName;
+          if (item.title) {
+            nameInput.value = item.title;
 
             let suggestedPrice = item.lowest_recorded_price || item.price || 0;
             if (suggestedPrice > 0) {
@@ -195,14 +241,33 @@
             } else {
               status.innerText = "🌐 Produktname gefunden (UpcItemDB)!";
             }
+
+            let details = [];
+            if (item.msrp && item.msrp > 0) {
+              detectedUvp = Number(item.msrp).toFixed(2);
+              details.push(`<b>UVP:</b> ${detectedUvp} €`);
+              btnUvp.style.display = "inline-block";
+            }
+            if (item.brand) details.push(`<b>Marke:</b> ${item.brand}`);
+            if (item.category) details.push(`<b>Kategorie:</b> ${item.category}`);
+
+            if (details.length > 0) {
+              infoContent.innerHTML = details.join(" | ");
+              infoBox.style.display = "block";
+            }
             return;
           }
         }
-      } catch (e) {
-        console.log("UpcItemDB nicht erreichbar:", e);
-      }
+      } catch (e) { console.log("UpcItemDB Fehler:", e); }
 
       status.innerText = "⚠️ Produkt in keiner externen Datenbank gefunden. Bitte Name und Preis manuell eingeben.";
+    }
+
+    function applyUvpPrice() {
+      if (detectedUvp) {
+        document.getElementById('preis').value = detectedUvp;
+        document.getElementById('typ').value = "VK";
+      }
     }
 
     document.getElementById('typ').addEventListener('change', () => {
@@ -284,6 +349,7 @@
           }
 
           document.getElementById('bookingForm').reset();
+          document.getElementById('productInfoBox').style.display = "none";
           document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
         } else {
           status.innerText = "❌ Fehler: " + result.message;
