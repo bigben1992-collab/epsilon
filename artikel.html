@@ -82,7 +82,7 @@
         <div class="btn-group">
           <button class="btn-print" onclick="window.print()">🖨️ Browser Drucken</button>
           <button class="btn-export" onclick="exportNiceLabelPDF()">📄 PDF Etikett Exportieren</button>
-          <button class="btn-labelnize" onclick="printViaLabelnize()">📱 Bild für Labelnize erstellen & öffnen</button>
+          <button class="btn-labelnize" onclick="printViaLabelnize()">📱 PNG erstellen & Labelnize öffnen</button>
         </div>
       </div>
     </div>
@@ -208,7 +208,7 @@
           ctx.drawImage(qrSource, 20, 30, 240, 240);
         }
 
-        // Artikeldaten schreiben
+        // Text & Artikeldaten
         ctx.fillStyle = '#000000';
         ctx.font = 'bold 26px sans-serif';
         ctx.fillText(currentItem.name.substring(0, 20), 280, 80);
@@ -233,7 +233,7 @@
       try {
         const dataUrl = await generateLabelImage();
 
-        // 1. PNG-Bild in den Download-Ordner speichern
+        // 1. Erstelle das PNG-Bild und lade es automatisch herunter
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `Etikett_${currentItem.barcode}.png`;
@@ -241,9 +241,11 @@
         a.click();
         document.body.removeChild(a);
 
-        // 2. Direkt die Labelnize-App per Intent öffnen
+        // 2. Öffne gezielt die auf Android installierte Labelnize-App
         setTimeout(() => {
-          const androidIntent = "intent:#Intent;package=com.labelnize.printer;end";
+          const appPackage = "com.labelnize.printer";
+          const androidIntent = `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${appPackage};end`;
+          
           window.location.href = androidIntent;
         }, 500);
 
