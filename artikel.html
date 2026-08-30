@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -17,7 +19,6 @@
     button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
     .btn-print { background: #059669; }
     .btn-export { background: #4f46e5; }
-    .btn-labelnize { background: #d97706; }
     ul { list-style: none; padding: 0; }
     li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
     
@@ -40,7 +41,7 @@
       background: #fff;
     }
     .label-details { text-align: left; flex: 1; }
-    .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
 
     @media print {
       body * { visibility: hidden; }
@@ -52,13 +53,14 @@
 </head>
 <body>
   <nav>
-    <a href="index.html">🏠 Menü</a> |
-    <a href="buchen.html">Buchen (EK/VK)</a> |
-    <a href="artikel.html">Artikel & Druck</a> |
-    <a href="platz.html">Platzabfrage</a> |
-    <a href="bilanz.html">Bilanz</a> |
-    <a href="verwaltung.html">Verwaltung</a>
-  </nav>
+  <a href="index.html">🏠 Menü</a> |
+  <a href="buchen.html">Buchen (EK/VK)</a> |
+  <a href="artikel.html">Artikel & Druck</a> |
+  <a href="platz.html">Platzabfrage</a> |
+  <a href="bilanz.html">Bilanz</a> |
+  <a href="verwaltung.html">Verwaltung</a>
+</nav>
+
 
   <div class="card">
     <h2>Artikelabfrage & Druckansicht</h2>
@@ -82,7 +84,6 @@
         <div class="btn-group">
           <button class="btn-print" onclick="window.print()">🖨️ Browser Drucken</button>
           <button class="btn-export" onclick="exportNiceLabelPDF()">📄 PDF Etikett Exportieren</button>
-          <button class="btn-labelnize" onclick="printViaLabelnize()">📱 PNG erstellen & Labelnize öffnen</button>
         </div>
       </div>
     </div>
@@ -186,72 +187,6 @@
       doc.text(currentItem.barcode, 29, 25);
 
       doc.save(`Etikett_QR_${currentItem.barcode}.pdf`);
-    }
-
-    function generateLabelImage() {
-      return new Promise((resolve) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 500;
-        canvas.height = 300;
-        const ctx = canvas.getContext('2d');
-
-        // Weißer Hintergrund
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // QR-Code einbinden
-        const qrCanvas = document.querySelector("#qrcodeCanvas canvas");
-        const qrImg = document.querySelector("#qrcodeCanvas img");
-        let qrSource = qrCanvas || qrImg;
-
-        if (qrSource) {
-          ctx.drawImage(qrSource, 20, 30, 240, 240);
-        }
-
-        // Text & Artikeldaten
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 26px sans-serif';
-        ctx.fillText(currentItem.name.substring(0, 20), 280, 80);
-
-        ctx.font = 'bold 36px sans-serif';
-        ctx.fillText(`VK: ${currentItem.vk_preis} €`, 280, 160);
-
-        ctx.font = '20px sans-serif';
-        ctx.fillStyle = '#475569';
-        ctx.fillText(currentItem.barcode, 280, 220);
-
-        resolve(canvas.toDataURL("image/png"));
-      });
-    }
-
-    async function printViaLabelnize() {
-      if (!currentItem) {
-        alert("Kein Artikel geladen.");
-        return;
-      }
-
-      try {
-        const dataUrl = await generateLabelImage();
-
-        // 1. PNG-Bild erstellen und Herunterladen auslösen
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = `Etikett_${currentItem.barcode}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // 2. Erzwungener App-Aufruf über Android Intent Scheme
-        setTimeout(() => {
-          const packageName = "com.labelnize.printer";
-          const intentUrl = `intent:#Intent;package=${packageName};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`;
-          
-          window.location.href = intentUrl;
-        }, 600);
-
-      } catch (err) {
-        console.error("Fehler beim Erstellen des Bildes:", err);
-      }
     }
   </script>
 </body>
