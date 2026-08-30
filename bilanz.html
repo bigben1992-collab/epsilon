@@ -27,6 +27,7 @@
     .metric { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
     .metric-title { font-weight: bold; color: #334155; }
     .highlight { font-size: 1.1em; color: #16a34a; font-weight: bold; }
+    .negative { font-size: 1.1em; color: #dc2626; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -36,6 +37,7 @@
     <a href="buchen.html">Buchen (EK/VK)</a> |
     <a href="artikel.html">Artikel & Druck</a> |
     <a href="platz.html">Platzabfrage</a> |
+    <a href="bilanz.html" class="active">Bilanz</a> |
     <a href="verwaltung.html">Verwaltung</a>
   </nav>
 
@@ -86,17 +88,15 @@
   </div>
 
   <script>
-    // Füge hier deine Google Web-App URL ein
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
 
-    // Scanner Initialisierung
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
     scanner.render((text) => {
       let isCorrect = confirm(`Gescannter Code: ${text}\nAls Filter für die Bilanz übernehmen?`);
       if (isCorrect) {
         document.getElementById('artikelFilter').value = text;
-        ladeBilanz(); // Automatisch Bilanz für gescannten Barcode laden
+        ladeBilanz();
       }
     });
 
@@ -113,7 +113,18 @@
           if (data.status === "success") {
             document.getElementById("wareneinsatz").innerText = data.data.wareneinsatzEK + " €";
             document.getElementById("umsatz").innerText = data.data.umsatzVK + " €";
-            document.getElementById("rohgewinn").innerText = data.data.rohgewinn + " €";
+            
+            const rohgewinnEl = document.getElementById("rohgewinn");
+            const rohgewinnWert = parseFloat(data.data.rohgewinn.toString().replace(',', '.'));
+            
+            rohgewinnEl.innerText = data.data.rohgewinn + " €";
+
+            if (rohgewinnWert < 0) {
+              rohgewinnEl.className = "negative";
+            } else {
+              rohgewinnEl.className = "highlight";
+            }
+
             document.getElementById("lagerwert").innerText = data.data.lagerwert + " €";
             document.getElementById("lagerwertVK").innerText = data.data.lagerwertVK + " €";
           } else {
@@ -126,7 +137,6 @@
         });
     }
 
-    // Automatisch beim ersten Laden aufrufen
     window.onload = ladeBilanz;
   </script>
 
