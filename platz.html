@@ -54,15 +54,19 @@
         let res = await fetch(`${API_URL}?action=getStorage&platz=${encodeURIComponent(p)}`, { redirect: "follow" });
         let data = await res.json();
 
-        let html = `<h3>Inhalt auf Platz ${data.platz}:</h3><ul>`;
-        let count = 0;
-        for (let code in data.artikel) {
-          count++;
-          let item = data.artikel[code];
-          html += `<li><b>${item.name}</b> (${code}): ${item.menge} Stück</li>`;
+        let entries = Object.entries(data.artikel || {});
+
+        if (entries.length === 0) {
+          document.getElementById('result').innerHTML = `<h3>Inhalt auf Platz ${data.platz || p.toUpperCase()}:</h3><ul><li>Platz ist leer.</li></ul>`;
+          return;
         }
-        if (count === 0) html += `<li>Platz ist leer.</li>`;
+
+        let html = `<h3>Inhalt auf Platz ${data.platz}:</h3><ul>`;
+        entries.forEach(([code, item]) => {
+          html += `<li><b>${item.name}</b> (${code}): <strong>${item.menge} Stück</strong></li>`;
+        });
         html += '</ul>';
+
         document.getElementById('result').innerHTML = html;
       } catch (err) {
         document.getElementById('result').innerText = "Fehler beim Laden!";
