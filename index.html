@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lager Beta - Hauptmenü</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background: #f4f6f8; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 15px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .menu-card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #1e293b;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .menu-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .menu-icon { font-size: 32px; margin-bottom: 10px; }
+    .menu-title { font-weight: bold; font-size: 18px; color: #2563eb; }
+    .menu-desc { font-size: 13px; color: #64748b; text-align: center; margin-top: 5px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Lagerverwaltung Beta</h1>
+    <p>Bitte wählen Sie ein Modul aus:</p>
+  </div>
+
+  <div class="grid-container">
+    <a href="buchen.html" class="menu-card">
+      <div class="menu-icon">📦</div>
+      <div class="menu-title">Ware Buchen</div>
+      <div class="menu-desc">Einkäufe (EK) und Verkäufe (VK) erfassen</div>
+    </a>
+
+    <a href="artikel.html" class="menu-card">
+      <div class="menu-icon">🔍</div>
+      <div class="menu-title">Artikel & Druck</div>
+      <div class="menu-desc">Bestände prüfen und Etiketten drucken</div>
+    </a>
+
+    <a href="platz.html" class="menu-card">
+      <div class="menu-icon">📍</div>
+      <div class="menu-title">Platzabfrage</div>
+      <div class="menu-desc">Inhalt einzelner Lagerplätze abrufen</div>
+    </a>
+
+    <a href="bilanz.html" class="menu-card">
+      <div class="menu-icon">📊</div>
+      <div class="menu-title">Bilanz</div>
+      <div class="menu-desc">Finanzübersichten und Lagerwerte einsehen</div>
+    </a>
+
+    <a href="verwaltung.html" class="menu-card">
+      <div class="menu-icon">⚙️</div>
+      <div class="menu-title">Verwaltung</div>
+      <div class="menu-desc">Umlagerungen und Bestandsanpassungen</div>
+    </a>
+  </div>
+
+</body>
+</html>
