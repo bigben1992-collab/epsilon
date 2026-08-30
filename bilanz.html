@@ -3,101 +3,133 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bilanz & Auswertung</title>
+  <title>Lager Beta - Bilanz & Auswertung</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f6f9; }
-    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
-    .filter-box { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; }
+    
+    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
+
+    label { font-size: 13px; font-weight: bold; color: #1e40af; display: block; margin-top: 5px; }
+    input { width: 100%; padding: 10px; margin: 5px 0 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+    
+    .filter-box { display: flex; flex-wrap: wrap; gap: 10px; }
     .filter-group { flex: 1; min-width: 140px; }
-    label { font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
-    input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    button { width: 100%; padding: 10px; background-color: #27ae60; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-    button:hover { background-color: #219150; }
-    .results { margin-top: 20px; }
-    .metric { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .metric-title { font-weight: bold; }
-    .highlight { font-size: 1.1em; color: #27ae60; }
+    
+    button { width: 100%; padding: 10px; margin: 5px 0; background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    
+    .results { margin-top: 20px; border-top: 2px solid #f4f6f8; padding-top: 10px; }
+    .metric { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+    .metric-title { font-weight: bold; color: #334155; }
+    .highlight { font-size: 1.1em; color: #16a34a; font-weight: bold; }
   </style>
 </head>
 <body>
 
-<div class="card">
-  <h2>Finanzbilanz</h2>
+  <nav>
+    <a href="index.html">🏠 Menü</a> |
+    <a href="buchen.html">Buchen (EK/VK)</a> |
+    <a href="artikel.html">Artikel & Druck</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bilanz.html" class="active">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
 
-  <div class="filter-box">
-    <div class="filter-group">
-      <label for="vonDatum">Von Datum:</label>
-      <input type="date" id="vonDatum">
+  <div class="card">
+    <h2>Finanzbilanz</h2>
+
+    <div id="reader"></div>
+
+    <div class="filter-box">
+      <div class="filter-group">
+        <label for="vonDatum">Von Datum:</label>
+        <input type="date" id="vonDatum">
+      </div>
+      <div class="filter-group">
+        <label for="bisDatum">Bis Datum:</label>
+        <input type="date" id="bisDatum">
+      </div>
+      <div class="filter-group" style="flex: 100%;">
+        <label for="artikelFilter">Artikel / Barcode (optional):</label>
+        <input type="text" id="artikelFilter" placeholder="z. B. Barcode oder Artikelname">
+      </div>
     </div>
-    <div class="filter-group">
-      <label for="bisDatum">Bis Datum:</label>
-      <input type="date" id="bisDatum">
-    </div>
-    <div class="filter-group" style="flex: 100%;">
-      <label for="artikelFilter">Artikel / Barcode (optional):</label>
-      <input type="text" id="artikelFilter" placeholder="z. B. Barcode oder Artikelname">
+
+    <button onclick="ladeBilanz()">Bilanz berechnen</button>
+
+    <div class="results">
+      <div class="metric">
+        <span class="metric-title">Wareneinsatz (EK):</span>
+        <span id="wareneinsatz">0.00 €</span>
+      </div>
+      <div class="metric">
+        <span class="metric-title">Umsatz (VK):</span>
+        <span id="umsatz">0.00 €</span>
+      </div>
+      <div class="metric">
+        <span class="metric-title">Rohgewinn:</span>
+        <span id="rohgewinn" class="highlight">0.00 €</span>
+      </div>
+      <div class="metric">
+        <span class="metric-title">Aktueller Lagerwert (EK):</span>
+        <span id="lagerwert">0.00 €</span>
+      </div>
+      <div class="metric">
+        <span class="metric-title">Aktueller Lagerwert (VK):</span>
+        <span id="lagerwertVK">0.00 €</span>
+      </div>
     </div>
   </div>
 
-  <button onclick="ladeBilanz()">Bilanz berechnen</button>
+  <script>
+    // Füge hier deine Google Web-App URL ein
+    const WEB_APP_URL = "DEINE_WEB_APP_URL_HIER";
 
-  <div class="results">
-    <div class="metric">
-      <span class="metric-title">Wareneinsatz (EK):</span>
-      <span id="wareneinsatz">0.00 €</span>
-    </div>
-    <div class="metric">
-      <span class="metric-title">Umsatz (VK):</span>
-      <span id="umsatz">0.00 €</span>
-    </div>
-    <div class="metric">
-      <span class="metric-title">Rohgewinn:</span>
-      <span id="rohgewinn" class="highlight">0.00 €</span>
-    </div>
-    <div class="metric">
-      <span class="metric-title">Aktueller Lagerwert (EK):</span>
-      <span id="lagerwert">0.00 €</span>
-    </div>
-    <div class="metric">
-      <span class="metric-title">Aktueller Lagerwert (VK):</span>
-      <span id="lagerwertVK">0.00 €</span>
-    </div>
-  </div>
-</div>
+    // Scanner Initialisierung
+    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    
+    scanner.render((text) => {
+      let isCorrect = confirm(`Gescannter Code: ${text}\nAls Filter für die Bilanz übernehmen?`);
+      if (isCorrect) {
+        document.getElementById('artikelFilter').value = text;
+        ladeBilanz(); // Automatisch Bilanz für gescannten Barcode laden
+      }
+    });
 
-<script>
-  // Füge hier deine Google Web-App URL ein
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    function ladeBilanz() {
+      const von = document.getElementById("vonDatum").value;
+      const bis = document.getElementById("bisDatum").value;
+      const artikel = document.getElementById("artikelFilter").value;
 
-  function ladeBilanz() {
-    const von = document.getElementById("vonDatum").value;
-    const bis = document.getElementById("bisDatum").value;
-    const artikel = document.getElementById("artikelFilter").value;
+      const url = `${WEB_APP_URL}?action=getFinance&von=${encodeURIComponent(von)}&bis=${encodeURIComponent(bis)}&artikel=${encodeURIComponent(artikel)}`;
 
-    const url = `${WEB_APP_URL}?action=getFinance&von=${encodeURIComponent(von)}&bis=${encodeURIComponent(bis)}&artikel=${encodeURIComponent(artikel)}`;
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "success") {
+            document.getElementById("wareneinsatz").innerText = data.data.wareneinsatzEK + " €";
+            document.getElementById("umsatz").innerText = data.data.umsatzVK + " €";
+            document.getElementById("rohgewinn").innerText = data.data.rohgewinn + " €";
+            document.getElementById("lagerwert").innerText = data.data.lagerwert + " €";
+            document.getElementById("lagerwertVK").innerText = data.data.lagerwertVK + " €";
+          } else {
+            alert("Fehler beim Abrufen der Bilanz: " + data.message);
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert("Netzwerkfehler.");
+        });
+    }
 
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === "success") {
-          document.getElementById("wareneinsatz").innerText = data.data.wareneinsatzEK + " €";
-          document.getElementById("umsatz").innerText = data.data.umsatzVK + " €";
-          document.getElementById("rohgewinn").innerText = data.data.rohgewinn + " €";
-          document.getElementById("lagerwert").innerText = data.data.lagerwert + " €";
-          document.getElementById("lagerwertVK").innerText = data.data.lagerwertVK + " €";
-        } else {
-          alert("Fehler beim Abrufen der Bilanz: " + data.message);
-        }
-      })
-      .catch(err => {
-        console.error(err);
-        alert("Netzwerkfehler.");
-      });
-  }
-
-  // Automatisch beim ersten Laden aufrufen
-  window.onload = ladeBilanz;
-</script>
+    // Automatisch beim ersten Laden aufrufen
+    window.onload = ladeBilanz;
+  </script>
 
 </body>
 </html>
