@@ -17,7 +17,7 @@
     button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
     .btn-print { background: #059669; }
     .btn-export { background: #4f46e5; }
-    .btn-labelnize { background: #d97706; } /* Button-Farbe für Labelnize */
+    .btn-labelnize { background: #d97706; }
     ul { list-style: none; padding: 0; }
     li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
     
@@ -188,28 +188,26 @@
       doc.save(`Etikett_QR_${currentItem.barcode}.pdf`);
     }
 
-    function printViaLabelnize() {
+    // ANPASSUNG OPTION 1: Web Share API für Labelnize
+    async function printViaLabelnize() {
       if (!currentItem) {
         alert("Kein Artikel geladen.");
         return;
       }
 
-      // Parameter-Uebergabe an die Labelnize-App über URL-Scheme
-      const text = encodeURIComponent(currentItem.name);
-      const price = encodeURIComponent(`VK: ${currentItem.vk_preis} €`);
-      const code = encodeURIComponent(currentItem.barcode);
+      const shareData = {
+        title: currentItem.name,
+        text: `${currentItem.name}\nVK: ${currentItem.vk_preis} €\nBarcode: ${currentItem.barcode}`
+      };
 
-      // Versucht das Schema der App aufzurufen
-      const labelnizeUrl = `labelnize://print?text=${text}&price=${price}&code=${code}`;
-      
-      // Intent-Fallback für Android-Systeme
-      const androidIntent = `intent://print?text=${text}&price=${price}&code=${code}#Intent;scheme=labelnize;package=com.labelnize.printer;end;`;
-
-      // Überprüfe auf mobilen Android-Aufruf
-      if (/Android/i.test(navigator.userAgent)) {
-        window.location.href = androidIntent;
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+        } catch (err) {
+          console.log("Teilen abgebrochen oder fehlgeschlagen:", err);
+        }
       } else {
-        window.location.href = labelnizeUrl;
+        alert("Die Teilen-Funktion wird von diesem Browser nicht unterstützt. Bitte benutze Chrome auf deinem Android-Gerät.");
       }
     }
   </script>
