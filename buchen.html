@@ -18,6 +18,7 @@
     button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
     button:disabled { background: #94a3b8; cursor: not-allowed; }
     .btn-pdf { background: #059669; margin-top: 10px; }
+    .btn-print { background: #d97706; margin-top: 10px; }
     #status { margin-top: 10px; font-weight: bold; }
     
     .scan-target-box {
@@ -98,8 +99,11 @@
     </form>
 
     <div id="status"></div>
-    <div id="invoiceArea" style="display: none;">
-      <button class="btn-pdf" onclick="generateInvoicePDF()">📄 Rechnung / Quittung als PDF herunterladen</button>
+
+    <!-- Aktions-Buttons nach der Buchung -->
+    <div id="actionArea" style="display: none;">
+      <button type="button" class="btn-print" onclick="printWithLabelnize()">🏷️ Etikett mit Labelnize drucken</button>
+      <button type="button" class="btn-pdf" id="pdfBtn" onclick="generateInvoicePDF()">📄 Rechnung / Quittung als PDF herunterladen</button>
     </div>
   </div>
 
@@ -149,13 +153,11 @@
       let infoContent = document.getElementById('infoContent');
       let btnUvp = document.getElementById('btnApplyUvp');
 
-      // Reset
       infoBox.style.display = "none";
       btnUvp.style.display = "none";
       infoContent.innerHTML = "";
       detectedUvp = null;
 
-      // 1. EIGENES BACKEND (Google Sheet)
       try {
         let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`);
         let data = await res.json();
@@ -172,7 +174,6 @@
 
       status.innerText = "🔍 Durchsuche externe EAN-Datenbanken...";
 
-      // 2. FALLBACK A: Open Food Facts
       try {
         let extRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
         let extData = await extRes.json();
@@ -198,7 +199,6 @@
         }
       } catch (e) { console.log("OFF Fehler:", e); }
 
-      // 3. FALLBACK B: Open Products Facts
       try {
         let extRes2 = await fetch(`https://world.openproductsfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
         let extData2 = await extRes2.json();
@@ -223,7 +223,6 @@
         }
       } catch (e) { console.log("OPF Fehler:", e); }
 
-      // 4. FALLBACK C: UpcItemDB (UVP Support)
       try {
         let extRes3 = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(code)}`);
         let extData3 = await extRes3.json();
@@ -259,7 +258,6 @@
         }
       } catch (e) { console.log("UpcItemDB Fehler:", e); }
 
-      // 5. FALLBACK D: Open EAN Database
       try {
         let extRes4 = await fetch(`https://api.openean.org/v1/product/${encodeURIComponent(code)}`);
         let extData4 = await extRes4.json();
@@ -332,7 +330,7 @@
       isProcessing = true;
       let btn = document.getElementById('submitBtn');
       let status = document.getElementById('status');
-      document.getElementById('invoiceArea').style.display = "none";
+      document.getElementById('actionArea').style.display = "none";
       
       btn.disabled = true;
       status.innerText = "Sende Buchung...";
@@ -356,19 +354,21 @@
         if (result.status === "success") {
           status.innerText = "✅ Gebucht! ID: " + result.data.id;
           
-          if (typ === "VK") {
-            lastBookingData = {
-              id: result.data.id,
-              date: new Date().toLocaleDateString('de-DE'),
-              time: new Date().toLocaleTimeString('de-DE'),
-              barcode: barcode,
-              name: name,
-              menge: Number(menge),
-              preis: Number(preis),
-              gesamt: (Number(menge) * Number(preis)).toFixed(2)
-            };
-            document.getElementById('invoiceArea').style.display = "block";
-          }
+          lastBookingData = {
+            id: result.data.id,
+            date: new Date().toLocaleDateString('de-DE'),
+            time: new Date().toLocaleTimeString('de-DE'),
+            barcode: barcode,
+            name: name,
+            platz: platz,
+            menge: Number(menge),
+            preis: Number(preis),
+            gesamt: (Number(menge) * Number(preis)).toFixed(2),
+            typ: typ
+          };
+
+          document.getElementById('actionArea').style.display = "block";
+          document.getElementById('pdfBtn').style.display = typ === "VK" ? "block" : "none";
 
           document.getElementById('bookingForm').reset();
           document.getElementById('productInfoBox').style.display = "none";
@@ -382,6 +382,33 @@
         isProcessing = false;
         btn.disabled = false;
       }
+    }
+
+    // Funktion zum Drucken über den Labelnize Deep Link / App
+    function printWithLabelnize() {
+      if (!lastBookingData) {
+        alert("Keine Buchungsdaten zum Drucken vorhanden.");
+        return;
+      }
+
+      const printData = {
+        barcode: lastBookingData.barcode,
+        title: lastBookingData.name,
+        price: `${lastBookingData.preis.toFixed(2)} €`,
+        location: lastBookingData.platz,
+        date: lastBookingData.date
+      };
+
+      // Erstelle ein URL Scheme / Deep Link für die Labelnize-App
+      const deepLink = `labelnize://print?barcode=${encodeURIComponent(printData.barcode)}&title=${encodeURIComponent(printData.title)}&price=${encodeURIComponent(printData.price)}&platz=${encodeURIComponent(printData.location)}`;
+
+      // Fallback auf System-Druckdialog oder App-Öffnung
+      window.location.href = deepLink;
+
+      setTimeout(() => {
+        // Falls Labelnize nicht direkt via Schema reagiert, wird das normale Web-Druckfenster geöffnet
+        window.print();
+      }, 1500);
     }
 
     function generateInvoicePDF() {
