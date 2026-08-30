@@ -241,21 +241,12 @@
         a.click();
         document.body.removeChild(a);
 
-        // 2. Erzwungener App-Aufruf über android-app:// Protokoll
+        // 2. Erzwungener App-Aufruf über Android Intent Scheme
         setTimeout(() => {
-          // Direktes Deep-Linking Protokoll ohne Store-Weiterleitung
-          const appUrl = "android-app://com.labelnize.printer";
+          const packageName = "com.labelnize.printer";
+          const intentUrl = `intent:#Intent;package=${packageName};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`;
           
-          // Fallback über ein unsichtbares iframe
-          const iframe = document.createElement("iframe");
-          iframe.style.display = "none";
-          iframe.src = appUrl;
-          document.body.appendChild(iframe);
-
-          // Alternativer direkter Umleitungsversuch
-          setTimeout(() => {
-            window.location.href = appUrl;
-          }, 100);
+          window.location.href = intentUrl;
         }, 600);
 
       } catch (err) {
