@@ -77,11 +77,11 @@
         <span id="rohgewinn" class="highlight">0.00 €</span>
       </div>
       <div class="metric">
-        <span class="metric-title">Aktueller Lagerwert (EK):</span>
+        <span class="metric-title" id="lbl-lagerwert">Aktueller Lagerwert (EK):</span>
         <span id="lagerwert">0.00 €</span>
       </div>
       <div class="metric">
-        <span class="metric-title">Aktueller Lagerwert (VK):</span>
+        <span class="metric-title" id="lbl-lagerwertVK">Aktueller Lagerwert (VK):</span>
         <span id="lagerwertVK">0.00 €</span>
       </div>
     </div>
@@ -123,6 +123,15 @@
               rohgewinnEl.className = "negative";
             } else {
               rohgewinnEl.className = "highlight";
+            }
+
+            // Labels dynamsich basierend auf 'isHistorisch' anpassen
+            if (data.data.isHistorisch) {
+              document.getElementById("lbl-lagerwert").innerText = "Lagerwert EK (zum Stichtag):";
+              document.getElementById("lbl-lagerwertVK").innerText = "Lagerwert VK (zum Stichtag):";
+            } else {
+              document.getElementById("lbl-lagerwert").innerText = "Aktueller Lagerwert (EK):";
+              document.getElementById("lbl-lagerwertVK").innerText = "Aktueller Lagerwert (VK):";
             }
 
             document.getElementById("lagerwert").innerText = data.data.lagerwert + " €";
