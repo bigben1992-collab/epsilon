@@ -134,7 +134,15 @@
 
       statusDiv.style.display = "none";
 
+      // Deduplizierung: Nur ein Eintrag pro Barcode anzeigen
+      const seenBarcodes = new Set();
+
       articles.forEach(item => {
+        if (!item.barcode || seenBarcodes.has(item.barcode)) {
+          return; // Überpringen, wenn dieser Barcode bereits dargestellt wurde
+        }
+        seenBarcodes.add(item.barcode);
+
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${escapeHtml(item.barcode)}</td>
