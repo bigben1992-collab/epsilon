@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lager Beta - Artikel ohne Bestand</title>
+  <title>Lager Beta - Bestandsübersicht</title>
   <style>
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; color: #333; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -11,6 +11,19 @@
     nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
     .card { background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     
+    .filter-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .filter-box label { font-weight: bold; cursor: pointer; color: #1e40af; }
+
     button { 
       background: #2563eb; 
       color: #fff; 
@@ -40,6 +53,24 @@
       border: 1px solid #fecaca;
       display: inline-block;
     }
+    .badge-stock {
+      color: #16a34a;
+      font-weight: bold;
+      background: #f0fdf4;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #bbf7d0;
+      display: inline-block;
+    }
+    .badge-platz {
+      background: #e2e8f0;
+      color: #334155;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 4px;
+      display: inline-block;
+    }
     
     #status { margin-top: 10px; font-weight: bold; color: #475569; }
     .status-error { color: #dc2626; }
@@ -53,18 +84,27 @@
     <a href="buchen.html">Buchen (EK/VK)</a> |
     <a href="artikel.html">Artikel & Druck</a> |
     <a href="platz.html">Platzabfrage</a> |
+    <a href="nullbestand.html" class="active">Bestandsübersicht</a> |
     <a href="bilanz.html">Bilanz</a> |
     <a href="verwaltung.html">Verwaltung</a>
   </nav>
 
   <div class="card">
-    <h2>⚠️ Artikel ohne Bestand (0 auf Lager)</h2>
-    <button onclick="loadZeroStockArticles()">🔄 Daten aktualisieren</button>
+    <h2 id="pageTitle">⚠️ Artikel ohne Bestand (0 auf Lager)</h2>
+
+    <!-- Optionensschalter / Filter -->
+    <div class="filter-box">
+      <span>Ansicht wählen:</span>
+      <label><input type="radio" name="viewMode" value="zero" checked onchange="switchViewMode()"> ⚠️ Nur Nullbestand</label>
+      <label><input type="radio" name="viewMode" value="all" onchange="switchViewMode()"> 📦 Alle Artikel (inkl. Lagerplätze)</label>
+    </div>
+
+    <button onclick="loadArticles()">🔄 Daten aktualisieren</button>
 
     <div id="status">Lade Daten...</div>
 
     <div class="table-container">
-      <table id="zeroStockTable" style="display: none;">
+      <table id="stockTable" style="display: none;">
         <thead>
           <tr>
             <th>Barcode</th>
@@ -72,6 +112,7 @@
             <th>EK-Preis (€)</th>
             <th>VK-Preis (€)</th>
             <th>Bestand</th>
+            <th>Lagerplatz / Plätze</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -81,36 +122,56 @@
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let rawArticlesData = []; // Speichert die geladenen Rohdaten
 
-    document.addEventListener("DOMContentLoaded", loadZeroStockArticles);
+    document.addEventListener("DOMContentLoaded", loadArticles);
 
-    async function loadZeroStockArticles() {
+    function switchViewMode() {
+      const mode = document.querySelector('input[name="viewMode"]:checked').value;
+      const title = document.getElementById("pageTitle");
+      
+      if (mode === "zero") {
+        title.innerText = "⚠️ Artikel ohne Bestand (0 auf Lager)";
+      } else {
+        title.innerText = "📦 Gesamtübersicht aller Artikel & Lagerplätze";
+      }
+
+      // Re-render ohne erneute API-Anfrage
+      if (rawArticlesData.length > 0) {
+        renderArticles(rawArticlesData);
+      } else {
+        loadArticles();
+      }
+    }
+
+    async function loadArticles() {
       const statusDiv = document.getElementById("status");
-      const table = document.getElementById("zeroStockTable");
+      const table = document.getElementById("stockTable");
       const tbody = document.getElementById("tableBody");
 
       statusDiv.style.display = "block";
       statusDiv.className = "";
-      statusDiv.innerText = "Lade Artikel mit Bestand 0...";
+      statusDiv.innerText = "Lade Artikeldaten...";
       table.style.display = "none";
       tbody.innerHTML = "";
 
-      // 1. Ausführung im Google Apps Script Kontext (z.B. Modal/Sheet)
+      // 1. Ausführung im Google Apps Script Kontext
       if (typeof google !== "undefined" && google.script && google.script.run) {
         google.script.run
-          .withSuccessHandler(renderArticles)
+          .withSuccessHandler(handleSuccess)
           .withFailureHandler(showError)
-          .getZeroStockArticles();
+          .getZeroStockArticles(); // Hinweis: Falls du ein Backend-Action für ALLE Artikel hast, hier stattdessen nutzen
       } 
       // 2. Externe Ausführung via Web-App API
       else {
         try {
+          // Wir fragen 'getAllArticles' oder 'getZeroStock' ab (je nach Action im Backend)
           let response = await fetch(`${API_URL}?action=getZeroStock`);
           if (!response.ok) throw new Error("Netzwerk-Antwort war nicht ok (" + response.status + ")");
           
           let res = await response.json();
           if (res.status === "success") {
-            renderArticles(res.data);
+            handleSuccess(res.data);
           } else {
             showError(new Error(res.message || "Fehler beim Abrufen der Daten"));
           }
@@ -120,48 +181,92 @@
       }
     }
 
+    function handleSuccess(data) {
+      rawArticlesData = data || [];
+      renderArticles(rawArticlesData);
+    }
+
     function renderArticles(articles) {
       const statusDiv = document.getElementById("status");
-      const table = document.getElementById("zeroStockTable");
+      const table = document.getElementById("stockTable");
       const tbody = document.getElementById("tableBody");
+      const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
+
+      tbody.innerHTML = "";
 
       if (!articles || articles.length === 0) {
         statusDiv.className = "status-success";
-        statusDiv.innerText = "🎉 Keines der Produkte ist aktuell auf Bestand 0!";
+        statusDiv.innerText = "🎉 Keines der Produkte ist aktuell gelistet!";
         return;
       }
 
-      // RADIKALE DEDUPLIZIERUNG:
-      // Wir bereinigen das Array per Map, damit jeder Barcode garantiert nur 1x vorkommt.
-      const uniqueMap = new Map();
+      // Aggregation per Barcode (Lagerplätze und Mengen sammeln)
+      const articleMap = new Map();
 
       articles.forEach(item => {
-        // Barcode bereinigen (String & Trim)
         const key = String(item.barcode || "").trim();
-        if (key && !uniqueMap.has(key)) {
-          uniqueMap.set(key, item);
+        if (!key) return;
+
+        if (!articleMap.has(key)) {
+          articleMap.set(key, {
+            barcode: item.barcode,
+            name: item.name,
+            ek: item.ek,
+            vk: item.vk,
+            bestand: Number(item.bestand || 0),
+            plaetze: new Set(item.platz ? [item.platz] : (item.plaetze || []))
+          });
+        } else {
+          // Wenn der Artikel mehrfach im Datensatz ist (z.B. auf verschiedenen Lagerplätzen)
+          const existing = articleMap.get(key);
+          existing.bestand += Number(item.bestand || 0);
+          if (item.platz) existing.plaetze.add(item.platz);
         }
       });
 
-      const uniqueArticles = Array.from(uniqueMap.values());
+      let displayList = Array.from(articleMap.values());
 
-      if (uniqueArticles.length === 0) {
+      // Filter basierend auf der Ansicht-Option
+      if (viewMode === "zero") {
+        displayList = displayList.filter(a => a.bestand === 0);
+      }
+
+      if (displayList.length === 0) {
         statusDiv.className = "status-success";
-        statusDiv.innerText = "🎉 Keines der Produkte ist aktuell auf Bestand 0!";
+        statusDiv.style.display = "block";
+        statusDiv.innerText = viewMode === "zero" 
+          ? "🎉 Keines der Produkte ist aktuell auf Bestand 0!" 
+          : "Keine Artikel gefunden.";
+        table.style.display = "none";
         return;
       }
 
       statusDiv.style.display = "none";
 
-      // Rendere ausschließlich die bereinigte Liste
-      uniqueArticles.forEach(item => {
+      // Render-Loop
+      displayList.forEach(item => {
         const row = document.createElement("tr");
+
+        // Formatierung der Lagerplätze
+        let plaetzeHtml = "-";
+        if (item.plaetze && item.plaetze.size > 0) {
+          plaetzeHtml = Array.from(item.plaetze)
+            .map(p => `<span class="badge-platz">📍 ${escapeHtml(p)}</span>`)
+            .join(" ");
+        }
+
+        // Bestands-Badge
+        const stockBadge = item.bestand === 0 
+          ? `<span class="badge-zero">0</span>` 
+          : `<span class="badge-stock">${item.bestand} Stk.</span>`;
+
         row.innerHTML = `
           <td>${escapeHtml(item.barcode)}</td>
           <td><strong>${escapeHtml(item.name)}</strong></td>
           <td>${Number(item.ek || 0).toFixed(2)} €</td>
           <td>${Number(item.vk || 0).toFixed(2)} €</td>
-          <td><span class="badge-zero">${item.bestand}</span></td>
+          <td>${stockBadge}</td>
+          <td>${plaetzeHtml}</td>
         `;
         tbody.appendChild(row);
       });
