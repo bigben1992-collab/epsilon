@@ -8,7 +8,7 @@
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; color: #333; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
     nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
-    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
+    
     .card { background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     
     .filter-box {
@@ -79,12 +79,12 @@
 </head>
 <body>
 
+  <!-- Menü ohne Selbstverlinkung -->
   <nav>
     <a href="index.html">🏠 Menü</a> |
     <a href="buchen.html">Buchen (EK/VK)</a> |
     <a href="artikel.html">Artikel & Druck</a> |
     <a href="platz.html">Platzabfrage</a> |
-    <a href="nullbestand.html" class="active">Bestandsübersicht</a> |
     <a href="bilanz.html">Bilanz</a> |
     <a href="verwaltung.html">Verwaltung</a>
   </nav>
@@ -92,7 +92,6 @@
   <div class="card">
     <h2 id="pageTitle">⚠️ Artikel ohne Bestand (0 auf Lager)</h2>
 
-    <!-- Optionensschalter / Filter -->
     <div class="filter-box">
       <span>Ansicht wählen:</span>
       <label><input type="radio" name="viewMode" value="zero" checked onchange="switchViewMode()"> ⚠️ Nur Nullbestand</label>
@@ -122,7 +121,6 @@
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
-    let rawArticlesData = []; // Speichert die geladenen Rohdaten
 
     document.addEventListener("DOMContentLoaded", loadArticles);
 
@@ -136,18 +134,14 @@
         title.innerText = "📦 Gesamtübersicht aller Artikel & Lagerplätze";
       }
 
-      // Re-render ohne erneute API-Anfrage
-      if (rawArticlesData.length > 0) {
-        renderArticles(rawArticlesData);
-      } else {
-        loadArticles();
-      }
+      loadArticles();
     }
 
     async function loadArticles() {
       const statusDiv = document.getElementById("status");
       const table = document.getElementById("stockTable");
       const tbody = document.getElementById("tableBody");
+      const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
 
       statusDiv.style.display = "block";
       statusDiv.className = "";
@@ -155,23 +149,28 @@
       table.style.display = "none";
       tbody.innerHTML = "";
 
-      // 1. Ausführung im Google Apps Script Kontext
       if (typeof google !== "undefined" && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler(handleSuccess)
-          .withFailureHandler(showError)
-          .getZeroStockArticles(); // Hinweis: Falls du ein Backend-Action für ALLE Artikel hast, hier stattdessen nutzen
+        if (viewMode === "all" && google.script.run.getAllArticles) {
+          google.script.run
+            .withSuccessHandler(renderArticles)
+            .withFailureHandler(showError)
+            .getAllArticles();
+        } else {
+          google.script.run
+            .withSuccessHandler(renderArticles)
+            .withFailureHandler(showError)
+            .getZeroStockArticles();
+        }
       } 
-      // 2. Externe Ausführung via Web-App API
       else {
         try {
-          // Wir fragen 'getAllArticles' oder 'getZeroStock' ab (je nach Action im Backend)
-          let response = await fetch(`${API_URL}?action=getZeroStock`);
+          const actionParam = viewMode === "all" ? "getAllArticles" : "getZeroStock";
+          let response = await fetch(`${API_URL}?action=${actionParam}`);
           if (!response.ok) throw new Error("Netzwerk-Antwort war nicht ok (" + response.status + ")");
           
           let res = await response.json();
           if (res.status === "success") {
-            handleSuccess(res.data);
+            renderArticles(res.data);
           } else {
             showError(new Error(res.message || "Fehler beim Abrufen der Daten"));
           }
@@ -179,11 +178,6 @@
           showError(err);
         }
       }
-    }
-
-    function handleSuccess(data) {
-      rawArticlesData = data || [];
-      renderArticles(rawArticlesData);
     }
 
     function renderArticles(articles) {
@@ -196,11 +190,12 @@
 
       if (!articles || articles.length === 0) {
         statusDiv.className = "status-success";
-        statusDiv.innerText = "🎉 Keines der Produkte ist aktuell gelistet!";
+        statusDiv.innerText = viewMode === "zero" 
+          ? "🎉 Keines der Produkte ist aktuell auf Bestand 0!" 
+          : "Keine Artikel vorhanden.";
         return;
       }
 
-      // Aggregation per Barcode (Lagerplätze und Mengen sammeln)
       const articleMap = new Map();
 
       articles.forEach(item => {
@@ -217,7 +212,6 @@
             plaetze: new Set(item.platz ? [item.platz] : (item.plaetze || []))
           });
         } else {
-          // Wenn der Artikel mehrfach im Datensatz ist (z.B. auf verschiedenen Lagerplätzen)
           const existing = articleMap.get(key);
           existing.bestand += Number(item.bestand || 0);
           if (item.platz) existing.plaetze.add(item.platz);
@@ -226,7 +220,6 @@
 
       let displayList = Array.from(articleMap.values());
 
-      // Filter basierend auf der Ansicht-Option
       if (viewMode === "zero") {
         displayList = displayList.filter(a => a.bestand === 0);
       }
@@ -236,18 +229,16 @@
         statusDiv.style.display = "block";
         statusDiv.innerText = viewMode === "zero" 
           ? "🎉 Keines der Produkte ist aktuell auf Bestand 0!" 
-          : "Keine Artikel gefunden.";
+          : "Keine Artikel vorhanden.";
         table.style.display = "none";
         return;
       }
 
       statusDiv.style.display = "none";
 
-      // Render-Loop
       displayList.forEach(item => {
         const row = document.createElement("tr");
 
-        // Formatierung der Lagerplätze
         let plaetzeHtml = "-";
         if (item.plaetze && item.plaetze.size > 0) {
           plaetzeHtml = Array.from(item.plaetze)
@@ -255,7 +246,6 @@
             .join(" ");
         }
 
-        // Bestands-Badge
         const stockBadge = item.bestand === 0 
           ? `<span class="badge-zero">0</span>` 
           : `<span class="badge-stock">${item.bestand} Stk.</span>`;
