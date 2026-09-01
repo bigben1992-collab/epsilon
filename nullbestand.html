@@ -14,15 +14,28 @@
     .filter-box {
       background: #eff6ff;
       border: 1px solid #bfdbfe;
-      padding: 12px;
+      padding: 15px;
       border-radius: 6px;
       margin-bottom: 15px;
       display: flex;
-      gap: 20px;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .filter-row {
+      display: flex;
+      gap: 15px;
       align-items: center;
       flex-wrap: wrap;
     }
-    .filter-box label { font-weight: bold; cursor: pointer; color: #1e40af; }
+    .filter-box label { font-weight: bold; color: #1e40af; }
+    .filter-input {
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 14px;
+      outline: none;
+    }
+    .filter-input:focus { border-color: #2563eb; }
 
     button { 
       background: #2563eb; 
@@ -79,7 +92,6 @@
 </head>
 <body>
 
-  <!-- Menü ohne Selbstverlinkung -->
   <nav>
     <a href="index.html">🏠 Menü</a> |
     <a href="buchen.html">Buchen (EK/VK)</a> |
@@ -92,10 +104,26 @@
   <div class="card">
     <h2 id="pageTitle">⚠️ Artikel ohne Bestand (0 auf Lager)</h2>
 
+    <!-- Erweiterter Filter-Bereich -->
     <div class="filter-box">
-      <span>Ansicht wählen:</span>
-      <label><input type="radio" name="viewMode" value="zero" checked onchange="switchViewMode()"> ⚠️ Nur Nullbestand</label>
-      <label><input type="radio" name="viewMode" value="all" onchange="switchViewMode()"> 📦 Alle Artikel (inkl. Lagerplätze)</label>
+      <div class="filter-row">
+        <span><strong>Ansicht:</strong></span>
+        <label><input type="radio" name="viewMode" value="zero" checked onchange="switchViewMode()"> ⚠️ Nur Nullbestand</label>
+        <label><input type="radio" name="viewMode" value="all" onchange="switchViewMode()"> 📦 Alle Artikel</label>
+      </div>
+      
+      <div class="filter-row">
+        <div>
+          <label for="searchBarcode">🔍 Barcode / Name:</label>
+          <input type="text" id="searchBarcode" class="filter-input" placeholder="Suche..." oninput="applyFilters()">
+        </div>
+        <div>
+          <label for="searchLocation">📍 Lagerort:</label>
+          <select id="searchLocation" class="filter-input" onchange="applyFilters()">
+            <option value="">-- Alle Lagerorte --</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <button onclick="loadArticles()">🔄 Daten aktualisieren</button>
@@ -121,6 +149,7 @@
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let rawArticlesData = []; // Zwischenspeicher für geladene Rohdaten
 
     document.addEventListener("DOMContentLoaded", loadArticles);
 
@@ -152,12 +181,12 @@
       if (typeof google !== "undefined" && google.script && google.script.run) {
         if (viewMode === "all" && google.script.run.getAllArticles) {
           google.script.run
-            .withSuccessHandler(renderArticles)
+            .withSuccessHandler(handleDataLoaded)
             .withFailureHandler(showError)
             .getAllArticles();
         } else {
           google.script.run
-            .withSuccessHandler(renderArticles)
+            .withSuccessHandler(handleDataLoaded)
             .withFailureHandler(showError)
             .getZeroStockArticles();
         }
@@ -170,7 +199,7 @@
           
           let res = await response.json();
           if (res.status === "success") {
-            renderArticles(res.data);
+            handleDataLoaded(res.data);
           } else {
             showError(new Error(res.message || "Fehler beim Abrufen der Daten"));
           }
@@ -180,15 +209,48 @@
       }
     }
 
-    function renderArticles(articles) {
+    function handleDataLoaded(data) {
+      rawArticlesData = data || [];
+      populateLocationDropdown(rawArticlesData);
+      applyFilters();
+    }
+
+    // Befüllt das Lagerort-Dropdown automatisch mit allen vorhandenen Orten
+    function populateLocationDropdown(articles) {
+      const locationSelect = document.getElementById("searchLocation");
+      const currentSelected = locationSelect.value;
+      
+      const locations = new Set();
+      articles.forEach(item => {
+        if (item.platz) locations.add(String(item.platz).trim());
+        if (item.plaetze) item.plaetze.forEach(p => locations.add(String(p).trim()));
+      });
+
+      locationSelect.innerHTML = '<option value="">-- Alle Lagerorte --</option>';
+      Array.from(locations).sort().forEach(loc => {
+        if (loc) {
+          const opt = document.createElement("option");
+          opt.value = loc;
+          opt.textContent = loc;
+          locationSelect.appendChild(opt);
+        }
+      });
+
+      locationSelect.value = currentSelected;
+    }
+
+    function applyFilters() {
       const statusDiv = document.getElementById("status");
       const table = document.getElementById("stockTable");
       const tbody = document.getElementById("tableBody");
       const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
+      
+      const searchBarcode = document.getElementById("searchBarcode").value.trim().toLowerCase();
+      const selectedLocation = document.getElementById("searchLocation").value.trim().toLowerCase();
 
       tbody.innerHTML = "";
 
-      if (!articles || articles.length === 0) {
+      if (!rawArticlesData || rawArticlesData.length === 0) {
         statusDiv.className = "status-success";
         statusDiv.innerText = viewMode === "zero" 
           ? "🎉 Keines der Produkte ist aktuell auf Bestand 0!" 
@@ -196,9 +258,10 @@
         return;
       }
 
+      // Aggregation je Barcode
       const articleMap = new Map();
 
-      articles.forEach(item => {
+      rawArticlesData.forEach(item => {
         const key = String(item.barcode || "").trim();
         if (!key) return;
 
@@ -220,16 +283,30 @@
 
       let displayList = Array.from(articleMap.values());
 
+      // 1. Modus-Filter (Nullbestand)
       if (viewMode === "zero") {
         displayList = displayList.filter(a => a.bestand === 0);
+      }
+
+      // 2. Barcode/Name Filter
+      if (searchBarcode) {
+        displayList = displayList.filter(a => 
+          String(a.barcode).toLowerCase().includes(searchBarcode) || 
+          String(a.name).toLowerCase().includes(searchBarcode)
+        );
+      }
+
+      // 3. Lagerort Filter
+      if (selectedLocation) {
+        displayList = displayList.filter(a => 
+          Array.from(a.plaetze).some(p => String(p).toLowerCase() === selectedLocation)
+        );
       }
 
       if (displayList.length === 0) {
         statusDiv.className = "status-success";
         statusDiv.style.display = "block";
-        statusDiv.innerText = viewMode === "zero" 
-          ? "🎉 Keines der Produkte ist aktuell auf Bestand 0!" 
-          : "Keine Artikel vorhanden.";
+        statusDiv.innerText = "Keine passenden Artikel für diese Filterkriterien gefunden.";
         table.style.display = "none";
         return;
       }
