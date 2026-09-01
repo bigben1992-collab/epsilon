@@ -132,17 +132,30 @@
         return;
       }
 
-      statusDiv.style.display = "none";
-
-      // Deduplizierung: Nur ein Eintrag pro Barcode anzeigen
-      const seenBarcodes = new Set();
+      // RADIKALE DEDUPLIZIERUNG:
+      // Wir bereinigen das Array per Map, damit jeder Barcode garantiert nur 1x vorkommt.
+      const uniqueMap = new Map();
 
       articles.forEach(item => {
-        if (!item.barcode || seenBarcodes.has(item.barcode)) {
-          return; // Überpringen, wenn dieser Barcode bereits dargestellt wurde
+        // Barcode bereinigen (String & Trim)
+        const key = String(item.barcode || "").trim();
+        if (key && !uniqueMap.has(key)) {
+          uniqueMap.set(key, item);
         }
-        seenBarcodes.add(item.barcode);
+      });
 
+      const uniqueArticles = Array.from(uniqueMap.values());
+
+      if (uniqueArticles.length === 0) {
+        statusDiv.className = "status-success";
+        statusDiv.innerText = "🎉 Keines der Produkte ist aktuell auf Bestand 0!";
+        return;
+      }
+
+      statusDiv.style.display = "none";
+
+      // Rendere ausschließlich die bereinigte Liste
+      uniqueArticles.forEach(item => {
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${escapeHtml(item.barcode)}</td>
