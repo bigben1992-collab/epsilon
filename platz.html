@@ -13,42 +13,125 @@
     #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
     input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
     button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    .btn-cancel { background: #dc2626; }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-group button { flex: 1; }
     ul { list-style: none; padding: 0; }
     li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
+
+    /* Modal Styling für Bestätigungsabfrage */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-box h3 { margin-top: 0; }
+    .modal-box .confirm-code { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #2563eb; 
+      margin: 10px 0;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
   <nav>
-  <a href="index.html">🏠 Menü</a> |
-  <a href="buchen.html">Buchen (EK/VK)</a> |
-  <a href="artikel.html">Artikel & Druck</a> |
-  <a href="bestandsabfrage.html">Bestandsabfrage</a> |
-  <a href="bilanz.html">Bilanz</a> |
-  <a href="verwaltung.html">Verwaltung</a>
-</nav>
-
+    <a href="index.html">🏠 Menü</a> |
+    <a href="buchen.html">Buchen (EK/VK)</a> |
+    <a href="artikel.html">Artikel & Druck</a> |
+    <a href="bestandsabfrage.html">Bestandsabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
 
   <div class="card">
     <h2>Lagerplatzabfrage</h2>
     <div id="reader"></div>
 
     <input type="text" id="platz" placeholder="Lagerplatz eingeben oder scannen (z.B. A1)">
-    <button onclick="queryPlatz()">Suchen</button>
+    <button onclick="confirmAndQuery(document.getElementById('platz').value)">Suchen</button>
 
     <div id="result"></div>
   </div>
 
+  <!-- Bestätigungs-Modal -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Eingabe bestätigen</h3>
+      <p>Möchtest du nach folgendem Lagerplatz suchen?</p>
+      <div id="modalCode" class="confirm-code"></div>
+      <div class="btn-group">
+        <button onclick="acceptCode()">✅ Ja, Suchen</button>
+        <button class="btn-cancel" onclick="rejectCode()">❌ Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let pendingPlatz = "";
+    let isPaused = false;
 
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    
     scanner.render((text) => {
-      document.getElementById('platz').value = text;
-      queryPlatz();
+      if (isPaused) return;
+
+      try {
+        scanner.pause(true);
+      } catch (e) {
+        console.log("Scanner Pause nicht verfügbar", e);
+      }
+      
+      isPaused = true;
+      confirmAndQuery(text);
     });
 
-    async function queryPlatz() {
-      let p = document.getElementById('platz').value.trim();
+    function confirmAndQuery(p) {
+      p = p ? p.trim() : "";
+      if (!p) return;
+
+      pendingPlatz = p;
+      document.getElementById('modalCode').innerText = p;
+      document.getElementById('confirmModal').style.display = "flex";
+    }
+
+    function acceptCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      document.getElementById('platz').value = pendingPlatz;
+      queryPlatz(pendingPlatz);
+    }
+
+    function rejectCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      pendingPlatz = "";
+      resumeScanner();
+    }
+
+    function resumeScanner() {
+      isPaused = false;
+      try {
+        scanner.resume();
+      } catch (e) {
+        console.log("Scanner Resume nicht verfügbar", e);
+      }
+    }
+
+    async function queryPlatz(p) {
       if (!p) return;
 
       document.getElementById('result').innerText = "Lade Daten...";
@@ -72,6 +155,8 @@
         document.getElementById('result').innerHTML = html;
       } catch (err) {
         document.getElementById('result').innerText = "Fehler beim Laden!";
+      } finally {
+        resumeScanner();
       }
     }
   </script>
