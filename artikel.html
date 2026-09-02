@@ -19,6 +19,7 @@
     .btn-print { background: #059669; }
     .btn-export { background: #4f46e5; }
     .btn-png { background: #d97706; }
+    .btn-cancel { background: #dc2626; }
     ul { list-style: none; padding: 0; }
     li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
     
@@ -44,11 +45,39 @@
     .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
     .btn-group button { flex: 1; min-width: 140px; }
 
+    /* Modal Styling für Bestätigungsabfrage */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-box h3 { margin-top: 0; }
+    .modal-box .confirm-code { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #2563eb; 
+      margin: 10px 0;
+      word-break: break-all;
+    }
+
     @media print {
       body * { visibility: hidden; }
       #printArea, #printArea * { visibility: visible; }
       #printArea { position: absolute; left: 0; top: 0; width: 100%; }
-      nav, .card > h2, #reader, input, button, .btn-group { display: none !important; }
+      nav, .card > h2, #reader, input, button, .btn-group, .modal-overlay { display: none !important; }
     }
   </style>
 </head>
@@ -67,7 +96,7 @@
     <div id="reader"></div>
 
     <input type="text" id="barcode" placeholder="Barcode scannen / eingeben">
-    <button onclick="queryArticle()">Suchen</button>
+    <button onclick="confirmAndQuery(document.getElementById('barcode').value)">Suchen</button>
 
     <div id="result"></div>
     
@@ -90,18 +119,77 @@
     </div>
   </div>
 
+  <!-- Bestätigungs-Modal -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Eingabe bestätigen</h3>
+      <p>Möchtest du nach folgendem Code suchen?</p>
+      <div id="modalCode" class="confirm-code"></div>
+      <div class="btn-group">
+        <button onclick="acceptCode()">✅ Ja, Suchen</button>
+        <button class="btn-cancel" onclick="rejectCode()">❌ Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
     let currentItem = null;
+    let pendingCode = "";
+    let isPaused = false;
 
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    
     scanner.render((text) => {
-      document.getElementById('barcode').value = text;
-      queryArticle();
+      // Wenn bereits ein Bestätigungsfenster offen ist, weitere Scans verhindern
+      if (isPaused) return;
+
+      // Kamera pausieren, um Dauerfeuer zu stoppen
+      try {
+        scanner.pause(true);
+      } catch (e) {
+        console.log("Scanner Pause nicht verfügbar", e);
+      }
+      
+      isPaused = true;
+      confirmAndQuery(text);
     });
 
-    async function queryArticle() {
-      let code = document.getElementById('barcode').value.trim();
+    // Öffnet den Bestätigungsdialog
+    function confirmAndQuery(code) {
+      code = code ? code.trim() : "";
+      if (!code) return;
+
+      pendingCode = code;
+      document.getElementById('modalCode').innerText = code;
+      document.getElementById('confirmModal').style.display = "flex";
+    }
+
+    // Bei Klick auf "Ja, Suchen"
+    function acceptCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      document.getElementById('barcode').value = pendingCode;
+      queryArticle(pendingCode);
+    }
+
+    // Bei Klick auf "Abbrechen"
+    function rejectCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      pendingCode = "";
+      resumeScanner();
+    }
+
+    // Gibt die Kamera wieder für Scans frei
+    function resumeScanner() {
+      isPaused = false;
+      try {
+        scanner.resume();
+      } catch (e) {
+        console.log("Scanner Resume nicht verfügbar", e);
+      }
+    }
+
+    async function queryArticle(code) {
       if (!code) return;
 
       document.getElementById('result').innerText = "Lade Daten...";
@@ -113,6 +201,7 @@
 
         if (!data.info || (data.info.name === "Unbekannt" && Object.keys(data.plaetze).length === 0)) {
           document.getElementById('result').innerHTML = "<p>Kein Artikel gefunden.</p>";
+          resumeScanner();
           return;
         }
 
@@ -145,6 +234,8 @@
 
       } catch (err) {
         document.getElementById('result').innerText = "Fehler beim Laden!";
+      } finally {
+        resumeScanner(); // Scanner wieder aktivieren nach Abfragenabschluss
       }
     }
 
