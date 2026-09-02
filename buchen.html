@@ -18,19 +18,35 @@
     button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
     button:disabled { background: #94a3b8; cursor: not-allowed; }
     .btn-pdf { background: #059669; margin-top: 10px; }
+    .btn-cancel { background: #dc2626; }
     #status { margin-top: 10px; font-weight: bold; }
-    
-    .scan-target-box {
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      padding: 10px;
-      border-radius: 6px;
-      margin-bottom: 10px;
+
+    /* Layout-Anpassung: Radio-Buttons direkt neben den Feldern */
+    .field-row {
       display: flex;
       align-items: center;
-      justify-content: space-around;
+      gap: 8px;
+      margin: 5px 0;
     }
-    .scan-target-box label { font-weight: bold; cursor: pointer; color: #1e40af; }
+    .field-row input[type="text"], 
+    .field-row input[type="list"] {
+      flex: 1;
+      margin: 0;
+    }
+    .scan-radio-label {
+      font-size: 13px;
+      font-weight: bold;
+      color: #1e40af;
+      white-space: nowrap;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: #eff6ff;
+      padding: 8px 10px;
+      border: 1px solid #bfdbfe;
+      border-radius: 4px;
+    }
 
     #productInfoBox {
       background: #f0fdf4;
@@ -49,6 +65,36 @@
       width: auto;
       display: inline-block;
     }
+
+    /* Einteiliges Modal-Design für Bestätigungsabfragen */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-box h3 { margin-top: 0; }
+    .confirm-code { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #2563eb; 
+      margin: 10px 0;
+      word-break: break-all;
+    }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-group button { flex: 1; }
   </style>
 </head>
 <body>
@@ -64,18 +110,27 @@
   <div class="card">
     <h2>Ware Buchen (EK / VK)</h2>
 
-    <div class="scan-target-box">
-      <span>Ziel für Scan:</span>
-      <label><input type="radio" name="scanTarget" value="barcode" checked> 📦 Artikel-Barcode</label>
-      <label><input type="radio" name="scanTarget" value="platz"> 📍 Lagerplatz</label>
-    </div>
-
     <div id="reader"></div>
 
     <form id="bookingForm" onsubmit="confirmAndSubmit(event)">
-      <input type="text" id="barcode" placeholder="Barcode" required autofocus>
+      <!-- Feld 1: Barcode + Radio Button -->
+      <div class="field-row">
+        <input type="text" id="barcode" placeholder="Barcode" required autofocus>
+        <label class="scan-radio-label">
+          <input type="radio" name="scanTarget" value="barcode" checked> 📦 Scan
+        </label>
+      </div>
+
       <input type="text" id="name" placeholder="Warenname (optional)">
-      <input type="text" id="platz" placeholder="Lagerplatz (z.B. A1)" required>
+
+      <!-- Feld 2: Lagerplatz mit Auswahlliste (Datalist) + Radio Button -->
+      <div class="field-row">
+        <input type="text" id="platz" list="platzList" placeholder="Lagerplatz (z.B. A1)" required>
+        <datalist id="platzList"></datalist>
+        <label class="scan-radio-label">
+          <input type="radio" name="scanTarget" value="platz"> 📍 Scan
+        </label>
+      </div>
       
       <select id="typ">
         <option value="EK">Wareneinkauf (EK)</option>
@@ -85,7 +140,6 @@
       <input type="number" id="menge" placeholder="Menge" value="1" min="1" required>
       <input type="number" step="0.01" id="preis" placeholder="Einzelpreis (€)" required>
 
-      <!-- Infobox für Zusatzdaten (UVP, Marke, etc.) -->
       <div id="productInfoBox">
         <h4 style="margin: 0 0 5px 0; color: #166534;">ℹ️ Zusätzliche Produkt-Infos</h4>
         <div id="infoContent" style="font-size: 13px; color: #15803d;"></div>
@@ -103,31 +157,73 @@
     </div>
   </div>
 
+  <!-- Bestätigungs-Modal für Kamera-Scans -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Eingabe bestätigen</h3>
+      <p id="modalTargetText"></p>
+      <div id="modalCode" class="confirm-code"></div>
+      <div class="btn-group">
+        <button onclick="acceptScanCode()">✅ Übernehmen</button>
+        <button class="btn-cancel" onclick="rejectScanCode()">❌ Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
     let isProcessing = false;
     let lastBookingData = null;
     let detectedUvp = null;
+    let pendingScanText = "";
+    let isPaused = false;
 
+    // Kamera-Scanner mit Pause & Modal
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
     scanner.render((text) => {
+      if (isPaused) return;
+
+      try { scanner.pause(true); } catch(e){}
+      isPaused = true;
+
+      pendingScanText = text;
       let scanTarget = document.querySelector('input[name="scanTarget"]:checked').value;
       let targetLabel = scanTarget === 'barcode' ? 'Artikel-Barcode' : 'Lagerplatz';
 
-      let isCorrect = confirm(`Gescannter Code: ${text}\nAls ${targetLabel} eintragen?`);
-      if (isCorrect) {
-        if (scanTarget === 'barcode') {
-          document.getElementById('barcode').value = text;
-          fetchArticleInfo(text);
-          document.querySelector('input[name="scanTarget"][value="platz"]').checked = true;
-        } else {
-          document.getElementById('platz').value = text;
-          document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
-        }
-      }
+      document.getElementById('modalTargetText').innerText = `Gespielter Code für ${targetLabel}:`;
+      document.getElementById('modalCode').innerText = text;
+      document.getElementById('confirmModal').style.display = "flex";
     });
 
+    function acceptScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      let scanTarget = document.querySelector('input[name="scanTarget"]:checked').value;
+
+      if (scanTarget === 'barcode') {
+        document.getElementById('barcode').value = pendingScanText;
+        fetchArticleInfo(pendingScanText);
+        document.querySelector('input[name="scanTarget"][value="platz"]').checked = true;
+      } else {
+        document.getElementById('platz').value = pendingScanText;
+        document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
+      }
+
+      resumeScanner();
+    }
+
+    function rejectScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      pendingScanText = "";
+      resumeScanner();
+    }
+
+    function resumeScanner() {
+      isPaused = false;
+      try { scanner.resume(); } catch(e){}
+    }
+
+    // Beim Fokussieren das entsprechende Radio-Ziel schalten
     document.getElementById('barcode').addEventListener('focus', () => {
       document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
     });
@@ -139,6 +235,37 @@
       fetchArticleInfo(e.target.value.trim());
     });
 
+    // Lädt vorhandene Lagerplätze beim Start in das Datalist-Dropdown
+    document.addEventListener("DOMContentLoaded", loadStorageLocations);
+
+    async function loadStorageLocations() {
+      try {
+        let res = await fetch(`${API_URL}?action=getAllArticles`);
+        let resData = await res.json();
+        let articles = resData.data || resData;
+
+        let locations = new Set();
+        if (Array.isArray(articles)) {
+          articles.forEach(item => {
+            if (item.platz) locations.add(String(item.platz).trim());
+            if (item.plaetze) item.plaetze.forEach(p => locations.add(String(p).trim()));
+          });
+        }
+
+        let datalist = document.getElementById('platzList');
+        datalist.innerHTML = "";
+        Array.from(locations).sort().forEach(loc => {
+          if (loc) {
+            let opt = document.createElement("option");
+            opt.value = loc;
+            datalist.appendChild(opt);
+          }
+        });
+      } catch (e) {
+        console.log("Lagerplätze konnten nicht geladen werden:", e);
+      }
+    }
+
     async function fetchArticleInfo(code) {
       if (!code) return;
 
@@ -149,13 +276,11 @@
       let infoContent = document.getElementById('infoContent');
       let btnUvp = document.getElementById('btnApplyUvp');
 
-      // Reset
       infoBox.style.display = "none";
       btnUvp.style.display = "none";
       infoContent.innerHTML = "";
       detectedUvp = null;
 
-      // 1. EIGENES BACKEND (Google Sheet)
       try {
         let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`);
         let data = await res.json();
@@ -166,13 +291,10 @@
           status.innerText = "";
           return;
         }
-      } catch (e) {
-        console.log("Fehler bei eigener Backend-Abfrage:", e);
-      }
+      } catch (e) { console.log("Fehler bei Backend-Abfrage:", e); }
 
       status.innerText = "🔍 Durchsuche externe EAN-Datenbanken...";
 
-      // 2. FALLBACK A: Open Food Facts
       try {
         let extRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
         let extData = await extRes.json();
@@ -196,91 +318,7 @@
             return;
           }
         }
-      } catch (e) { console.log("OFF Fehler:", e); }
-
-      // 3. FALLBACK B: Open Products Facts
-      try {
-        let extRes2 = await fetch(`https://world.openproductsfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
-        let extData2 = await extRes2.json();
-
-        if (extData2.status === 1 && extData2.product) {
-          let p = extData2.product;
-          let prodName = p.product_name_de || p.product_name || "";
-          if (prodName) {
-            nameInput.value = prodName;
-            status.innerText = "🌐 Produktname gefunden (Open Products Facts)!";
-
-            let details = [];
-            if (p.brands) details.push(`<b>Marke:</b> ${p.brands}`);
-            if (p.categories) details.push(`<b>Kategorie:</b> ${p.categories.split(',')[0]}`);
-
-            if (details.length > 0) {
-              infoContent.innerHTML = details.join(" | ");
-              infoBox.style.display = "block";
-            }
-            return;
-          }
-        }
-      } catch (e) { console.log("OPF Fehler:", e); }
-
-      // 4. FALLBACK C: UpcItemDB (UVP Support)
-      try {
-        let extRes3 = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(code)}`);
-        let extData3 = await extRes3.json();
-
-        if (extData3.items && extData3.items.length > 0) {
-          let item = extData3.items[0];
-          if (item.title) {
-            nameInput.value = item.title;
-
-            let suggestedPrice = item.lowest_recorded_price || item.price || 0;
-            if (suggestedPrice > 0) {
-              preisInput.value = Number(suggestedPrice).toFixed(2);
-              status.innerText = "🌐 Produktname & Richtpreis übernommen (UpcItemDB)!";
-            } else {
-              status.innerText = "🌐 Produktname gefunden (UpcItemDB)!";
-            }
-
-            let details = [];
-            if (item.msrp && item.msrp > 0) {
-              detectedUvp = Number(item.msrp).toFixed(2);
-              details.push(`<b>UVP:</b> ${detectedUvp} €`);
-              btnUvp.style.display = "inline-block";
-            }
-            if (item.brand) details.push(`<b>Marke:</b> ${item.brand}`);
-            if (item.category) details.push(`<b>Kategorie:</b> ${item.category}`);
-
-            if (details.length > 0) {
-              infoContent.innerHTML = details.join(" | ");
-              infoBox.style.display = "block";
-            }
-            return;
-          }
-        }
-      } catch (e) { console.log("UpcItemDB Fehler:", e); }
-
-      // 5. FALLBACK D: Open EAN Database
-      try {
-        let extRes4 = await fetch(`https://api.openean.org/v1/product/${encodeURIComponent(code)}`);
-        let extData4 = await extRes4.json();
-
-        if (extData4 && extData4.name) {
-          nameInput.value = extData4.name;
-          status.innerText = "🌐 Produktname gefunden (Open EAN Database)!";
-
-          let details = [];
-          if (extData4.detailname) details.push(`<b>Details:</b> ${extData4.detailname}`);
-          if (extData4.vendor) details.push(`<b>Hersteller:</b> ${extData4.vendor}`);
-
-          if (details.length > 0) {
-            infoContent.innerHTML = details.join(" | ");
-            infoBox.style.display = "block";
-          }
-          return;
-        }
-      } catch (e) { 
-        console.log("Open EAN Database nicht erreichbar:", e); 
-      }
+      } catch (e) {}
 
       status.innerText = "⚠️ Produkt in keiner externen Datenbank gefunden. Bitte Name und Preis manuell eingeben.";
     }
@@ -373,6 +411,7 @@
           document.getElementById('bookingForm').reset();
           document.getElementById('productInfoBox').style.display = "none";
           document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
+          loadStorageLocations(); // Liste aktualisieren
         } else {
           status.innerText = "❌ Fehler: " + result.message;
         }
@@ -429,4 +468,4 @@
     }
   </script>
 </body>
-      </html>
+</html>
