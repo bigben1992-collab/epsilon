@@ -47,7 +47,7 @@
       border-radius: 4px;
     }
 
-    /* Neue Info-Box für aktuellen Bestandsort */
+    /* Info-Box für aktuelle Bestandsorte des Artikels */
     #stockLocationBox {
       background: #e0f2fe;
       border: 1px solid #bae6fd;
@@ -62,11 +62,12 @@
       display: inline-block;
       background: #0284c7;
       color: white;
-      padding: 3px 8px;
+      padding: 5px 10px;
       border-radius: 4px;
       font-weight: bold;
       margin: 3px 4px 3px 0;
       cursor: pointer;
+      transition: background 0.2s;
     }
     .place-tag:hover { background: #0369a1; }
 
@@ -145,7 +146,7 @@
 
       <!-- Live-Anzeige der aktuellen Lagerorte des Artikels -->
       <div id="stockLocationBox">
-        <strong>📍 Aktueller Bestand & Orte:</strong>
+        <strong>📍 Vorhandene Lagerplätze (Klick zum Auswählen):</strong>
         <div id="stockList" style="margin-top: 5px;"></div>
       </div>
 
@@ -275,8 +276,12 @@
         let locations = new Set();
         articles.forEach(item => {
           if (item.platz) locations.add(String(item.platz).trim());
-          if (item.plaetze && Array.isArray(item.plaetze)) {
-            item.plaetze.forEach(p => locations.add(String(p.platz || p).trim()));
+          if (item.plaetze) {
+            if (Array.isArray(item.plaetze)) {
+              item.plaetze.forEach(p => locations.add(String(p.platz || p).trim()));
+            } else if (typeof item.plaetze === 'object') {
+              for (let p in item.plaetze) locations.add(String(p).trim());
+            }
           }
         });
 
@@ -294,12 +299,11 @@
       }
     }
 
-    // Artikeldaten & aktuelle Standorte abfragen
+    // Artikeldaten & aktuelle Standorte abfragen (Kompatibel mit inventur.html Backend-Format)
     async function fetchArticleInfo(code) {
       if (!code) return;
 
       let nameInput = document.getElementById('name');
-      let preisInput = document.getElementById('preis');
       let status = document.getElementById('status');
       let infoBox = document.getElementById('productInfoBox');
       let infoContent = document.getElementById('infoContent');
@@ -318,31 +322,45 @@
       try {
         let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`);
         let data = await res.json();
-        let info = data.info || data;
         
-        if (info && info.name && info.name !== "Unbekannt") {
-          nameInput.value = info.name;
-          updatePriceByTyp(info);
-          status.innerText = "";
+        if (data && (data.info || data.plaetze)) {
+          let info = data.info || {};
+          
+          if (info.name && info.name !== "Unbekannt") {
+            nameInput.value = info.name;
+            updatePriceByTyp(info);
+            status.innerText = "";
+          }
 
-          // Anzeige der existierenden Lagerplätze + Mengenangabe
-          if (info.plaetze && info.plaetze.length > 0) {
-            let html = "";
-            info.plaetze.forEach(p => {
+          // Verarbeite data.plaetze (Objekt wie in inventur.html oder Array)
+          let plaetzeObj = data.plaetze || info.plaetze || {};
+          let html = "";
+          let foundPlaces = false;
+
+          if (Array.isArray(plaetzeObj)) {
+            plaetzeObj.forEach(p => {
               let pName = p.platz || p.name || p;
               let pMenge = p.menge !== undefined ? p.menge : "?";
               html += `<span class="place-tag" onclick="selectPlace('${pName}')">📍 ${pName} (${pMenge} Stk.)</span> `;
+              foundPlaces = true;
             });
+          } else if (typeof plaetzeObj === 'object') {
+            for (let p in plaetzeObj) {
+              html += `<span class="place-tag" onclick="selectPlace('${p}')">📍 ${p} (${plaetzeObj[p]} Stk.)</span> `;
+              foundPlaces = true;
+            }
+          }
+
+          if (foundPlaces) {
             stockList.innerHTML = html;
             stockBox.style.display = "block";
-          } else if (info.platz) {
-            let mengeStr = info.menge ? ` (${info.menge} Stk.)` : "";
-            stockList.innerHTML = `<span class="place-tag" onclick="selectPlace('${info.platz}')">📍 ${info.platz}${mengeStr}</span>`;
-            stockBox.style.display = "block";
           }
-          return;
+
+          if (info.name && info.name !== "Unbekannt") return;
         }
-      } catch (e) { console.log("Fehler bei Backend-Abfrage:", e); }
+      } catch (e) { 
+        console.log("Fehler bei Backend-Abfrage:", e); 
+      }
 
       status.innerText = "🔍 Durchsuche externe EAN-Datenbanken...";
 
