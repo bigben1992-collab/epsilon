@@ -21,15 +21,14 @@
     .btn-cancel { background: #dc2626; }
     #status { margin-top: 10px; font-weight: bold; }
 
-    /* Layout-Anpassung: Radio-Buttons direkt neben den Feldern */
+    /* Row Layout */
     .field-row {
       display: flex;
       align-items: center;
       gap: 8px;
       margin: 5px 0;
     }
-    .field-row input[type="text"], 
-    .field-row input[type="list"] {
+    .field-row input {
       flex: 1;
       margin: 0;
     }
@@ -47,6 +46,29 @@
       border: 1px solid #bfdbfe;
       border-radius: 4px;
     }
+
+    /* Neue Info-Box für aktuellen Bestandsort */
+    #stockLocationBox {
+      background: #e0f2fe;
+      border: 1px solid #bae6fd;
+      padding: 10px;
+      border-radius: 6px;
+      margin: 5px 0 10px 0;
+      display: none;
+      font-size: 13px;
+      color: #0369a1;
+    }
+    .place-tag {
+      display: inline-block;
+      background: #0284c7;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: bold;
+      margin: 3px 4px 3px 0;
+      cursor: pointer;
+    }
+    .place-tag:hover { background: #0369a1; }
 
     #productInfoBox {
       background: #f0fdf4;
@@ -66,7 +88,7 @@
       display: inline-block;
     }
 
-    /* Einteiliges Modal-Design für Bestätigungsabfragen */
+    /* Modal Styling */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -113,7 +135,7 @@
     <div id="reader"></div>
 
     <form id="bookingForm" onsubmit="confirmAndSubmit(event)">
-      <!-- Feld 1: Barcode + Radio Button -->
+      <!-- Barcode Feld + Scan-Schalter -->
       <div class="field-row">
         <input type="text" id="barcode" placeholder="Barcode" required autofocus>
         <label class="scan-radio-label">
@@ -121,9 +143,15 @@
         </label>
       </div>
 
+      <!-- Live-Anzeige der aktuellen Lagerorte des Artikels -->
+      <div id="stockLocationBox">
+        <strong>📍 Aktueller Bestand & Orte:</strong>
+        <div id="stockList" style="margin-top: 5px;"></div>
+      </div>
+
       <input type="text" id="name" placeholder="Warenname (optional)">
 
-      <!-- Feld 2: Lagerplatz mit Auswahlliste (Datalist) + Radio Button -->
+      <!-- Lagerplatz Feld + Scan-Schalter -->
       <div class="field-row">
         <input type="text" id="platz" list="platzList" placeholder="Lagerplatz (z.B. A1)" required>
         <datalist id="platzList"></datalist>
@@ -157,7 +185,7 @@
     </div>
   </div>
 
-  <!-- Bestätigungs-Modal für Kamera-Scans -->
+  <!-- Bestätigungs-Modal -->
   <div id="confirmModal" class="modal-overlay">
     <div class="modal-box">
       <h3>Eingabe bestätigen</h3>
@@ -178,7 +206,7 @@
     let pendingScanText = "";
     let isPaused = false;
 
-    // Kamera-Scanner mit Pause & Modal
+    // Scanner Setup
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
     scanner.render((text) => {
@@ -191,7 +219,7 @@
       let scanTarget = document.querySelector('input[name="scanTarget"]:checked').value;
       let targetLabel = scanTarget === 'barcode' ? 'Artikel-Barcode' : 'Lagerplatz';
 
-      document.getElementById('modalTargetText').innerText = `Gespielter Code für ${targetLabel}:`;
+      document.getElementById('modalTargetText').innerText = `Gescannter Code für ${targetLabel}:`;
       document.getElementById('modalCode').innerText = text;
       document.getElementById('confirmModal').style.display = "flex";
     });
@@ -223,7 +251,7 @@
       try { scanner.resume(); } catch(e){}
     }
 
-    // Beim Fokussieren das entsprechende Radio-Ziel schalten
+    // Input-Fokus Steuerung
     document.getElementById('barcode').addEventListener('focus', () => {
       document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
     });
@@ -235,22 +263,22 @@
       fetchArticleInfo(e.target.value.trim());
     });
 
-    // Lädt vorhandene Lagerplätze beim Start in das Datalist-Dropdown
     document.addEventListener("DOMContentLoaded", loadStorageLocations);
 
+    // Lädt alle existierenden Plätze für das Datalist Dropdown
     async function loadStorageLocations() {
       try {
         let res = await fetch(`${API_URL}?action=getAllArticles`);
         let resData = await res.json();
-        let articles = resData.data || resData;
+        let articles = Array.isArray(resData) ? resData : (resData.data || []);
 
         let locations = new Set();
-        if (Array.isArray(articles)) {
-          articles.forEach(item => {
-            if (item.platz) locations.add(String(item.platz).trim());
-            if (item.plaetze) item.plaetze.forEach(p => locations.add(String(p).trim()));
-          });
-        }
+        articles.forEach(item => {
+          if (item.platz) locations.add(String(item.platz).trim());
+          if (item.plaetze && Array.isArray(item.plaetze)) {
+            item.plaetze.forEach(p => locations.add(String(p.platz || p).trim()));
+          }
+        });
 
         let datalist = document.getElementById('platzList');
         datalist.innerHTML = "";
@@ -262,10 +290,11 @@
           }
         });
       } catch (e) {
-        console.log("Lagerplätze konnten nicht geladen werden:", e);
+        console.log("Fehler beim Laden aller Lagerplätze:", e);
       }
     }
 
+    // Artikeldaten & aktuelle Standorte abfragen
     async function fetchArticleInfo(code) {
       if (!code) return;
 
@@ -275,26 +304,49 @@
       let infoBox = document.getElementById('productInfoBox');
       let infoContent = document.getElementById('infoContent');
       let btnUvp = document.getElementById('btnApplyUvp');
+      let stockBox = document.getElementById('stockLocationBox');
+      let stockList = document.getElementById('stockList');
 
+      // Reset
       infoBox.style.display = "none";
       btnUvp.style.display = "none";
+      stockBox.style.display = "none";
+      stockList.innerHTML = "";
       infoContent.innerHTML = "";
       detectedUvp = null;
 
       try {
         let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`);
         let data = await res.json();
+        let info = data.info || data;
         
-        if (data.info && data.info.name && data.info.name !== "Unbekannt") {
-          nameInput.value = data.info.name;
-          updatePriceByTyp(data.info);
+        if (info && info.name && info.name !== "Unbekannt") {
+          nameInput.value = info.name;
+          updatePriceByTyp(info);
           status.innerText = "";
+
+          // Anzeige der existierenden Lagerplätze + Mengenangabe
+          if (info.plaetze && info.plaetze.length > 0) {
+            let html = "";
+            info.plaetze.forEach(p => {
+              let pName = p.platz || p.name || p;
+              let pMenge = p.menge !== undefined ? p.menge : "?";
+              html += `<span class="place-tag" onclick="selectPlace('${pName}')">📍 ${pName} (${pMenge} Stk.)</span> `;
+            });
+            stockList.innerHTML = html;
+            stockBox.style.display = "block";
+          } else if (info.platz) {
+            let mengeStr = info.menge ? ` (${info.menge} Stk.)` : "";
+            stockList.innerHTML = `<span class="place-tag" onclick="selectPlace('${info.platz}')">📍 ${info.platz}${mengeStr}</span>`;
+            stockBox.style.display = "block";
+          }
           return;
         }
       } catch (e) { console.log("Fehler bei Backend-Abfrage:", e); }
 
       status.innerText = "🔍 Durchsuche externe EAN-Datenbanken...";
 
+      // Open Food Facts Fallback
       try {
         let extRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
         let extData = await extRes.json();
@@ -309,7 +361,6 @@
             let details = [];
             if (p.brands) details.push(`<b>Marke:</b> ${p.brands}`);
             if (p.quantity) details.push(`<b>Menge:</b> ${p.quantity}`);
-            if (p.nutriscore_grade) details.push(`<b>Nutri-Score:</b> ${p.nutriscore_grade.toUpperCase()}`);
 
             if (details.length > 0) {
               infoContent.innerHTML = details.join(" | ");
@@ -321,6 +372,10 @@
       } catch (e) {}
 
       status.innerText = "⚠️ Produkt in keiner externen Datenbank gefunden. Bitte Name und Preis manuell eingeben.";
+    }
+
+    function selectPlace(placeName) {
+      document.getElementById('platz').value = placeName;
     }
 
     function applyUvpPrice() {
@@ -410,8 +465,9 @@
 
           document.getElementById('bookingForm').reset();
           document.getElementById('productInfoBox').style.display = "none";
+          document.getElementById('stockLocationBox').style.display = "none";
           document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
-          loadStorageLocations(); // Liste aktualisieren
+          loadStorageLocations();
         } else {
           status.innerText = "❌ Fehler: " + result.message;
         }
