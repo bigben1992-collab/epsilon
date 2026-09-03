@@ -381,7 +381,7 @@
         const isChecked = shoppingCart.has(item.barcode);
         if (isChecked) row.classList.add("selected-row");
 
-        const qty = shoppingCart.has(item.barcode) ? shoppingCart.get(item.barcode) : 0;
+        const qty = shoppingCart.has(item.barcode) ? shoppingCart.get(item.barcode) : 1;
 
         let plaetzeHtml = item.plaetze.length > 0 
           ? item.plaetze.map(p => `<span class="badge-platz">📍 ${escapeHtml(p)}</span>`).join(" ") 
@@ -401,7 +401,7 @@
           <td>${stockBadge}</td>
           <td>${item.ek.toFixed(2)} €</td>
           <td>
-            <input type="number" min="0" class="qty-input" id="qty_${item.barcode}" value="${qty}" 
+            <input type="number" min="1" class="qty-input" id="qty_${item.barcode}" value="${qty}" 
               onchange="updateQuantity('${item.barcode}', this.value)">
           </td>
           <td>${plaetzeHtml}</td>
@@ -414,7 +414,7 @@
 
     function toggleItem(barcode, isChecked) {
       const qtyInput = document.getElementById(`qty_${barcode}`);
-      const qty = Number(qtyInput ? qtyInput.value : 0);
+      const qty = Math.max(1, Number(qtyInput ? qtyInput.value : 1));
 
       if (isChecked) {
         shoppingCart.set(barcode, qty);
@@ -428,12 +428,14 @@
         if (isChecked) row.classList.add("selected-row");
         else row.classList.remove("selected-row");
       }
+      syncToBuchenStorage();
     }
 
     function updateQuantity(barcode, value) {
-      const qty = Math.max(0, Number(value) || 0);
+      const qty = Math.max(1, Number(value) || 1);
       if (shoppingCart.has(barcode)) {
         shoppingCart.set(barcode, qty);
+        syncToBuchenStorage();
       }
     }
 
@@ -442,8 +444,34 @@
       checkboxes.forEach(chk => {
         chk.checked = checkState;
         const barcode = chk.id.replace('chk_', '');
-        toggleItem(barcode, checkState);
+        const qtyInput = document.getElementById(`qty_${barcode}`);
+        const qty = Math.max(1, Number(qtyInput ? qtyInput.value : 1));
+        
+        if (checkState) {
+          shoppingCart.set(barcode, qty);
+        } else {
+          shoppingCart.delete(barcode);
+        }
+        
+        const row = chk.closest("tr");
+        if (checkState) row.classList.add("selected-row");
+        else row.classList.remove("selected-row");
       });
+      syncToBuchenStorage();
+    }
+
+    /* --- SYNCHRONISATION MIT BUCHEN.HTML --- */
+    function syncToBuchenStorage() {
+      const buchenArray = [];
+      shoppingCart.forEach((qty, barcode) => {
+        const item = rawArticlesData.find(a => String(a.barcode) === String(barcode));
+        buchenArray.push({
+          barcode: barcode,
+          name: item ? item.name : "Unbekannt",
+          menge: qty
+        });
+      });
+      localStorage.setItem("lagerEinkaufsliste", JSON.stringify(buchenArray));
     }
 
     /* --- LOCALSTORAGE SPEICHERUNG --- */
@@ -467,6 +495,9 @@
 
       lists[listName.trim()] = itemsObj;
       localStorage.setItem("lager_einkaufslisten", JSON.stringify(lists));
+
+      // Synchronisiert auch direkt mit buchen.html
+      syncToBuchenStorage();
 
       alert(`✅ Einkaufsliste "${listName}" wurde erfolgreich gespeichert!`);
       updateSavedListsDropdown(listName.trim());
@@ -512,6 +543,7 @@
       document.getElementById("activeFilterBadge").style.display = "block";
       document.getElementById("btnClearFilter").style.display = "inline-block";
 
+      syncToBuchenStorage();
       applyFilters();
     }
 
@@ -521,6 +553,7 @@
       document.getElementById("btnClearFilter").style.display = "none";
       document.getElementById("savedListsDropdown").value = "";
       shoppingCart.clear();
+      syncToBuchenStorage();
       applyFilters();
     }
 
