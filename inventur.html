@@ -6,102 +6,355 @@
   <title>Lager Beta - Inventur</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
+    /* Globales Design & Navigation */
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
     nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
+
     .card { background: #fff; padding: 15px; border-radius: 6px; max-width: 500px; margin: 0 auto; }
+    #readerAdjust { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
     input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
     button { background: #1e40af; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
-    .reader-box { width: 100%; max-width: 300px; margin: 0 auto 10px auto; }
-    .scan-target-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-around; }
-    .scan-target-box label { font-weight: bold; cursor: pointer; color: #1e40af; }
-    .stock-info { background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 6px; margin: 8px 0; font-size: 13px; }
-    .stock-info ul { margin: 4px 0 0 0; padding-left: 20px; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .btn-cancel { background: #dc2626; }
+    #aStatus { margin-top: 10px; font-weight: bold; }
+
+    /* Row Layout für Radio-Buttons & Inputs */
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 5px 0;
+    }
+    .field-row input {
+      flex: 1;
+      margin: 0;
+    }
+    .scan-radio-label {
+      font-size: 13px;
+      font-weight: bold;
+      color: #1e40af;
+      white-space: nowrap;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: #eff6ff;
+      padding: 8px 10px;
+      border: 1px solid #bfdbfe;
+      border-radius: 4px;
+    }
+
+    /* Interaktive Lagerplatz-Tags */
+    #stockLocationBox {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 10px 0;
+      display: none;
+    }
+    .stock-box-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .place-tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .place-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .place-tag:hover { 
+      background: #0284c7; 
+      color: #ffffff;
+      border-color: #0284c7;
+      transform: translateY(-1px);
+    }
+    .place-tag .badge-qty {
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+    .place-tag:hover .badge-qty {
+      background: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-box h3 { margin-top: 0; }
+    .confirm-code { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #2563eb; 
+      margin: 10px 0;
+      word-break: break-all;
+    }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-group button { flex: 1; }
   </style>
 </head>
 <body>
   <nav>
-    <a href="index.html">🏠 Menü</a> | <a href="preise.html">Preise</a> | <a href="umlagern.html">Umlagern</a> | <a href="verwaltung.html">⚙️ Verwaltung</a>
+    <a href="index.html">🏠 Menü</a> | 
+    <a href="preise.html">Preise</a> | 
+    <a href="umlagern.html">Umlagern</a> | 
+    <a href="verwaltung.html">⚙️ Verwaltung</a>
   </nav>
 
   <div class="card">
     <h3>📋 Bestand anpassen (Inventur)</h3>
-    <div class="scan-target-box">
-      <span>Ziel für Scan:</span>
-      <label><input type="radio" name="scanTargetAdjust" value="barcode" checked> 📦 Barcode</label>
-      <label><input type="radio" name="scanTargetAdjust" value="platz"> 📍 Lagerplatz</label>
-    </div>
 
-    <div id="readerAdjust" class="reader-box"></div>
-    <input type="text" id="aBarcode" placeholder="Barcode scannen / eingeben">
-    <div id="aStockInfo" class="stock-info" style="display:none;"></div>
-    <input type="text" id="aPlatz" placeholder="Lagerplatz (z.B. A1)">
-    <input type="number" id="aMenge" placeholder="Neuer Ist-Bestand (Soll)" min="0">
-    <button onclick="executeAdjustment()">Bestand Überschreiben</button>
-    <p id="aStatus"></p>
+    <div id="readerAdjust"></div>
+
+    <form id="adjustForm" onsubmit="confirmAndSubmitAdjustment(event)">
+      <!-- Barcode Feld + Scan Target -->
+      <div class="field-row">
+        <input type="text" id="aBarcode" placeholder="Barcode scannen / eingeben" required autofocus>
+        <label class="scan-radio-label">
+          <input type="radio" name="scanTargetAdjust" value="barcode" checked> 📦 Scan
+        </label>
+      </div>
+
+      <!-- Lagerplätze Anzeige / Auswahl -->
+      <div id="stockLocationBox">
+        <div id="articleTitle" class="stock-box-title">📍 Vorhandene Lagerplätze (Klick zum Auswählen):</div>
+        <div id="stockList" class="place-tags-container"></div>
+      </div>
+
+      <!-- Lagerplatz Feld + Scan Target -->
+      <div class="field-row">
+        <input type="text" id="aPlatz" placeholder="Lagerplatz (z.B. A1)" required>
+        <label class="scan-radio-label">
+          <input type="radio" name="scanTargetAdjust" value="platz"> 📍 Scan
+        </label>
+      </div>
+
+      <input type="number" id="aMenge" placeholder="Neuer Ist-Bestand (Soll)" min="0" required>
+      <button type="submit" id="submitBtn">Bestand Überschreiben</button>
+    </form>
+
+    <div id="aStatus"></div>
+  </div>
+
+  <!-- Bestätigungs-Modal -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Eingabe bestätigen</h3>
+      <p id="modalTargetText"></p>
+      <div id="modalCode" class="confirm-code"></div>
+      <div class="btn-group">
+        <button onclick="acceptScanCode()">✅ Übernehmen</button>
+        <button class="btn-cancel" onclick="rejectScanCode()">❌ Abbrechen</button>
+      </div>
+    </div>
   </div>
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let pendingScanText = "";
+    let isPaused = false;
+    let isProcessing = false;
 
-    const scannerAdjust = new Html5QrcodeScanner("readerAdjust", { fps: 10, qrbox: 180 });
+    // QR & Barcode-Scanner Initialisierung
+    const scannerAdjust = new Html5QrcodeScanner("readerAdjust", { fps: 10, qrbox: 200 });
+
     scannerAdjust.render((text) => {
+      if (isPaused) return;
+
+      try { scannerAdjust.pause(true); } catch(e){}
+      isPaused = true;
+
+      pendingScanText = text;
       let scanTarget = document.querySelector('input[name="scanTargetAdjust"]:checked').value;
       let targetLabel = scanTarget === 'barcode' ? 'Artikel-Barcode' : 'Lagerplatz';
 
-      if (confirm(`Gescannter Code: ${text}\nAls ${targetLabel} eintragen?`)) {
-        if (scanTarget === 'barcode') {
-          document.getElementById('aBarcode').value = text;
-          fetchCurrentStock(text);
-          document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
-        } else {
-          document.getElementById('aPlatz').value = text;
-          document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
-        }
-      }
+      document.getElementById('modalTargetText').innerText = `Gescannter Code für ${targetLabel}:`;
+      document.getElementById('modalCode').innerText = text;
+      document.getElementById('confirmModal').style.display = "flex";
     });
 
-    document.getElementById('aBarcode').addEventListener('change', (e) => fetchCurrentStock(e.target.value.trim()));
-    document.getElementById('aBarcode').addEventListener('focus', () => { document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true; });
-    document.getElementById('aPlatz').addEventListener('focus', () => { document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true; });
+    function acceptScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      let scanTarget = document.querySelector('input[name="scanTargetAdjust"]:checked').value;
 
+      if (scanTarget === 'barcode') {
+        document.getElementById('aBarcode').value = pendingScanText;
+        fetchCurrentStock(pendingScanText);
+        document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
+      } else {
+        document.getElementById('aPlatz').value = pendingScanText;
+        document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
+      }
+
+      resumeScanner();
+    }
+
+    function rejectScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      pendingScanText = "";
+      resumeScanner();
+    }
+
+    function resumeScanner() {
+      isPaused = false;
+      try { scannerAdjust.resume(); } catch(e){}
+    }
+
+    // Input-Fokus Steuerung & Change Events
+    document.getElementById('aBarcode').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
+    });
+    document.getElementById('aPlatz').addEventListener('focus', () => {
+      document.querySelector('input[name="scanTargetAdjust"][value="platz"]').checked = true;
+    });
+    document.getElementById('aBarcode').addEventListener('change', (e) => {
+      fetchCurrentStock(e.target.value.trim());
+    });
+
+    // Bestände und Orte abfragen & UI-Tags generieren
     async function fetchCurrentStock(barcode) {
-      let infoBox = document.getElementById('aStockInfo');
-      if (!barcode) { infoBox.style.display = "none"; return; }
-      infoBox.style.display = "block";
-      infoBox.innerHTML = "⏳ Suche Lagerorte...";
+      let stockBox = document.getElementById('stockLocationBox');
+      let stockList = document.getElementById('stockList');
+      let articleTitle = document.getElementById('articleTitle');
+      let status = document.getElementById('aStatus');
+
+      if (!barcode) { 
+        stockBox.style.display = "none"; 
+        return; 
+      }
+
+      stockBox.style.display = "block";
+      articleTitle.innerText = "⏳ Suche Lagerorte...";
+      stockList.innerHTML = "";
+
       try {
         let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(barcode)}`, { redirect: "follow" });
         let data = await res.json();
+
         if (!data.info || (data.info.name === "Unbekannt" && Object.keys(data.plaetze || {}).length === 0)) {
-          infoBox.innerHTML = "❌ Kein Artikel gefunden.";
+          articleTitle.innerText = "❌ Kein Artikel gefunden.";
           return;
         }
-        let html = `<strong>📍 ${data.info.name}</strong> (Gesamt: ${data.info.gesamtbestand || 0} Stk.)<ul>`;
-        for (let p in data.plaetze) { html += `<li>Lagerplatz <b>${p}</b>: ${data.plaetze[p]} Stück</li>`; }
-        infoBox.innerHTML = html + `</ul>`;
-      } catch (e) { infoBox.innerHTML = "❌ Fehler beim Abrufen der Standortdaten."; }
+
+        let artName = data.info.name || "Unbekannter Artikel";
+        let gesamt = data.info.gesamtbestand || 0;
+        articleTitle.innerHTML = `📦 <b>${artName}</b> (Gesamt: ${gesamt} Stk.)<br><span style="font-size: 11px; text-transform: none; font-weight: normal; color: #475569;">Klick auf Platz zum Auswählen:</span>`;
+
+        let html = "";
+        let plaetzeObj = data.plaetze || {};
+
+        if (Array.isArray(plaetzeObj)) {
+          plaetzeObj.forEach(p => {
+            let pName = p.platz || p.name || p;
+            let pMenge = p.menge !== undefined ? p.menge : "?";
+            html += `<span class="place-tag" onclick="selectPlace('${pName}')">📍 ${pName} <span class="badge-qty">${pMenge} Stk.</span></span>`;
+          });
+        } else if (typeof plaetzeObj === 'object') {
+          for (let p in plaetzeObj) {
+            html += `<span class="place-tag" onclick="selectPlace('${p}')">📍 ${p} <span class="badge-qty">${plaetzeObj[p]} Stk.</span></span>`;
+          }
+        }
+
+        stockList.innerHTML = html || "<span style='font-size:12px; color:#64748b;'>Keine aktiven Lagerplätze registriert.</span>";
+      } catch (e) { 
+        articleTitle.innerText = "❌ Fehler beim Abrufen der Standortdaten."; 
+      }
     }
 
-    async function executeAdjustment() {
+    function selectPlace(placeName) {
+      document.getElementById('aPlatz').value = placeName;
+    }
+
+    // Formulardaten vor der Übermittlung verifizieren
+    function confirmAndSubmitAdjustment(e) {
+      e.preventDefault();
+      if (isProcessing) return;
+
       let code = document.getElementById('aBarcode').value.trim();
       let platz = document.getElementById('aPlatz').value.trim();
       let menge = document.getElementById('aMenge').value;
+
+      let msg = `Bitte Inventuranpassung überprüfen:\n\n` +
+                `Barcode: ${code}\n` +
+                `Lagerplatz: ${platz}\n` +
+                `Neuer Soll-Bestand: ${menge} Stück\n\n` +
+                `Bestand jetzt überschreiben?`;
+
+      if (confirm(msg)) {
+        executeAdjustment();
+      }
+    }
+
+    async function executeAdjustment() {
+      isProcessing = true;
+      let btn = document.getElementById('submitBtn');
       let status = document.getElementById('aStatus');
 
-      if (!code || !platz || menge === "") { status.innerText = "Bitte Barcode, Platz und die neue Menge angeben."; return; }
+      let code = document.getElementById('aBarcode').value.trim();
+      let platz = document.getElementById('aPlatz').value.trim();
+      let menge = document.getElementById('aMenge').value;
+
+      btn.disabled = true;
       status.innerText = "Korrigiere Bestand...";
+
       try {
         let res = await fetch(`${API_URL}?action=adjustStock&barcode=${encodeURIComponent(code)}&platz=${encodeURIComponent(platz)}&neueMenge=${menge}`, { redirect: "follow" });
         let data = await res.json();
+
         if (data.status === "success") {
           status.innerText = `✅ Bestand aktualisiert! (Vorher: ${data.data.alteMenge} -> Neu: ${data.data.neueMenge})`;
-          document.getElementById('aBarcode').value = "";
-          document.getElementById('aPlatz').value = "";
-          document.getElementById('aMenge').value = "";
-          document.getElementById('aStockInfo').style.display = "none";
-        } else { status.innerText = "❌ Fehler: " + data.message; }
-      } catch (err) { status.innerText = "❌ Fehler bei der Anpassung!"; }
+          
+          document.getElementById('adjustForm').reset();
+          document.getElementById('stockLocationBox').style.display = "none";
+          document.querySelector('input[name="scanTargetAdjust"][value="barcode"]').checked = true;
+        } else { 
+          status.innerText = "❌ Fehler: " + data.message; 
+        }
+      } catch (err) { 
+        status.innerText = "❌ Fehler bei der Anpassung!"; 
+      } finally {
+        isProcessing = false;
+        btn.disabled = false;
+      }
     }
   </script>
 </body>
