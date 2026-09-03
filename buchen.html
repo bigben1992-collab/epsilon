@@ -8,86 +8,16 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   <style>
-    :root {
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --bg-body: #f1f5f9;
-      --card-bg: #ffffff;
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-      --border-color: #e2e8f0;
-    }
-
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-      margin: 0; 
-      padding: 16px; 
-      background: var(--bg-body); 
-      color: var(--text-main);
-    }
-
-    /* Modernisierte Header-Navigation */
-    header {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 12px 16px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      border: 1px solid var(--border-color);
-    }
-
-    nav { 
-      display: flex; 
-      gap: 6px; 
-      flex-wrap: wrap; 
-      align-items: center;
-    }
-
-    nav a { 
-      text-decoration: none; 
-      color: var(--text-muted); 
-      font-weight: 500; 
-      font-size: 14px;
-      padding: 8px 12px;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    nav a:hover { 
-      background: #f8fafc;
-      color: var(--primary);
-    }
-
-    nav a.active { 
-      color: var(--primary); 
-      background: #eff6ff;
-      font-weight: 600;
-    }
-
-    .card { 
-      background: var(--card-bg); 
-      padding: 20px; 
-      border-radius: 12px; 
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      border: 1px solid var(--border-color);
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    h2 {
-      margin-top: 0;
-      margin-bottom: 16px;
-      font-size: 20px;
-      color: var(--text-main);
-    }
-
+    /* Ursprüngliches Navigations-Design */
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
+    
+    .card { background: #fff; padding: 15px; border-radius: 6px; }
     #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
     input, select, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
-    button { background: var(--primary); color: #fff; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; }
-    button:hover { background: var(--primary-hover); }
+    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
     button:disabled { background: #94a3b8; cursor: not-allowed; }
     .btn-pdf { background: #059669; margin-top: 10px; }
     .btn-cancel { background: #dc2626; }
@@ -116,10 +46,10 @@
       background: #eff6ff;
       padding: 8px 10px;
       border: 1px solid #bfdbfe;
-      border-radius: 6px;
+      border-radius: 4px;
     }
 
-    /* Überarbeiteter Bereich für vorhandene Bestandsorte */
+    /* Neue, verbesserte Darstellung der Lagerplätze im Formular */
     #stockLocationBox {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -224,17 +154,15 @@
   </style>
 </head>
 <body>
-
-  <header>
-    <nav>
-      <a href="index.html">🏠 Menü</a>
-      <a href="artikel.html">Artikelabfrage & Etikettendruck</a>
-      <a href="platz.html">Platzabfrage</a>
-      <a href="bestandsabfrage.html">Bestandsabfrage</a>
-      <a href="bilanz.html">Bilanz</a>
-      <a href="verwaltung.html">Verwaltung</a>
-    </nav>
-  </header>
+  <!-- Ursprüngliches Navigations-Layout -->
+  <nav>
+    <a href="index.html">🏠 Menü</a> |
+    <a href="artikel.html">Artikelabfrage & Etikettendruck</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bestandsabfrage.html">Bestandsabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
 
   <div class="card">
     <h2>Ware Buchen (EK / VK)</h2>
@@ -250,7 +178,7 @@
         </label>
       </div>
 
-      <!-- Live-Anzeige der aktuellen Lagerorte des Artikels -->
+      <!-- Live-Anzeige der aktuellen Lagerorte des Artikels (Optisch überarbeitet) -->
       <div id="stockLocationBox">
         <div class="stock-box-title">📍 Vorhandene Lagerplätze (Klick zum Auswählen):</div>
         <div id="stockList" class="place-tags-container"></div>
