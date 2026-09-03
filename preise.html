@@ -6,79 +6,227 @@
   <title>Lager Beta - Preise</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
+    /* Globales Design & Navigation */
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
     nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
+
     .card { background: #fff; padding: 15px; border-radius: 6px; max-width: 500px; margin: 0 auto; }
+    #readerPrice { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
     input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
     button { background: #d97706; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
-    label { font-size: 13px; font-weight: bold; color: #475569; display: block; margin-top: 5px; }
-    .reader-box { width: 100%; max-width: 300px; margin: 0 auto 10px auto; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .btn-blue { background: #2563eb; }
+    .btn-cancel { background: #dc2626; }
+    label { font-size: 13px; font-weight: bold; color: #475569; display: block; margin-top: 8px; }
+    #pStatus { margin-top: 10px; font-weight: bold; }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-box h3 { margin-top: 0; }
+    .confirm-code { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #2563eb; 
+      margin: 10px 0;
+      word-break: break-all;
+    }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-group button { flex: 1; }
   </style>
 </head>
 <body>
   <nav>
-    <a href="index.html">🏠 Menü</a> | <a href="umlagern.html">Umlagern</a> | <a href="inventur.html">Inventur</a> | <a href="verwaltung.html">⚙️ Verwaltung</a>
+    <a href="index.html">🏠 Menü</a> | 
+    <a href="umlagern.html">Umlagern</a> | 
+    <a href="inventur.html">Inventur</a> | 
+    <a href="verwaltung.html">⚙️ Verwaltung</a>
   </nav>
 
   <div class="card">
     <h3>💶 Preise anpassen</h3>
-    <div id="readerPrice" class="reader-box"></div>
-    <input type="text" id="pBarcode" placeholder="Barcode scannen / eingeben">
-    <button style="background:#2563eb;" onclick="loadArticlePrices()">Artikel Laden</button>
+
+    <div id="readerPrice"></div>
+
+    <input type="text" id="pBarcode" placeholder="Barcode scannen / eingeben" required autofocus>
+    <button type="button" class="btn-blue" id="loadBtn" onclick="loadArticlePrices()">Artikel Laden</button>
     
-    <div id="priceForm" style="display:none; margin-top:10px;">
-      <label>EK-Preis (€):</label>
-      <input type="number" step="0.01" id="pEk">
-      <label>VK-Preis (€):</label>
-      <input type="number" step="0.01" id="pVk">
-      <button onclick="savePrices()">Preise Aktualisieren</button>
+    <form id="priceForm" style="display:none; margin-top:10px;" onsubmit="confirmAndSavePrices(event)">
+      <label for="pEk">EK-Preis (€):</label>
+      <input type="number" step="0.01" id="pEk" placeholder="0.00" required>
+      
+      <label for="pVk">VK-Preis (€):</label>
+      <input type="number" step="0.01" id="pVk" placeholder="0.00" required>
+      
+      <button type="submit" id="saveBtn">Preise Aktualisieren</button>
+    </form>
+
+    <div id="pStatus"></div>
+  </div>
+
+  <!-- Bestätigungs-Modal für Scan-Ergebnisse -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Eingabe bestätigen</h3>
+      <p>Gescannter Code für Artikel-Barcode:</p>
+      <div id="modalCode" class="confirm-code"></div>
+      <div class="btn-group">
+        <button type="button" class="btn-blue" onclick="acceptScanCode()">✅ Übernehmen</button>
+        <button type="button" class="btn-cancel" onclick="rejectScanCode()">❌ Abbrechen</button>
+      </div>
     </div>
-    <p id="pStatus"></p>
   </div>
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let pendingScanText = "";
+    let isPaused = false;
+    let isProcessing = false;
 
-    const scannerPrice = new Html5QrcodeScanner("readerPrice", { fps: 10, qrbox: 180 });
+    // QR & Barcode-Scanner Initialisierung
+    const scannerPrice = new Html5QrcodeScanner("readerPrice", { fps: 10, qrbox: 200 });
+
     scannerPrice.render((text) => {
-      if (confirm(`Gescannter Code: ${text}\nAls Artikel-Barcode eintragen?`)) {
-        document.getElementById('pBarcode').value = text;
+      if (isPaused) return;
+
+      try { scannerPrice.pause(true); } catch(e){}
+      isPaused = true;
+
+      pendingScanText = text;
+      document.getElementById('modalCode').innerText = text;
+      document.getElementById('confirmModal').style.display = "flex";
+    });
+
+    function acceptScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      document.getElementById('pBarcode').value = pendingScanText;
+      loadArticlePrices();
+      resumeScanner();
+    }
+
+    function rejectScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      pendingScanText = "";
+      resumeScanner();
+    }
+
+    function resumeScanner() {
+      isPaused = false;
+      try { scannerPrice.resume(); } catch(e){}
+    }
+
+    // Enter-Taste im Barcode-Feld löst direktes Laden aus
+    document.getElementById('pBarcode').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
         loadArticlePrices();
       }
     });
 
+    // Artikelpreise von der API abrufen
     async function loadArticlePrices() {
       let code = document.getElementById('pBarcode').value.trim();
       let status = document.getElementById('pStatus');
-      if (!code) return;
-      status.innerText = "Lade Artikel...";
+      let loadBtn = document.getElementById('loadBtn');
+      let priceForm = document.getElementById('priceForm');
+
+      if (!code) {
+        status.innerText = "Bitte Barcode eingeben.";
+        return;
+      }
+
+      status.innerText = "⏳ Lade Artikel...";
+      loadBtn.disabled = true;
+
       try {
         let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`, { redirect: "follow" });
         let data = await res.json();
-        if (data.info && data.info.name !== "Unbekannt") {
-          document.getElementById('pEk').value = data.info.ek_preis;
-          document.getElementById('pVk').value = data.info.vk_preis;
-          document.getElementById('priceForm').style.display = "block";
-          status.innerText = "Artikel: " + data.info.name;
+
+        if (data.info && data.info.name && data.info.name !== "Unbekannt") {
+          document.getElementById('pEk').value = data.info.ek_preis !== undefined ? data.info.ek_preis : "";
+          document.getElementById('pVk').value = data.info.vk_preis !== undefined ? data.info.vk_preis : "";
+          priceForm.style.display = "block";
+          status.innerText = "📦 Artikel: " + data.info.name;
         } else {
           status.innerText = "❌ Artikel nicht gefunden.";
-          document.getElementById('priceForm').style.display = "none";
+          priceForm.style.display = "none";
         }
-      } catch (err) { status.innerText = "❌ Fehler beim Laden!"; }
+      } catch (err) { 
+        status.innerText = "❌ Fehler beim Laden!"; 
+        priceForm.style.display = "none";
+      } finally {
+        loadBtn.disabled = false;
+      }
     }
 
+    // Bestätigung vor Speichern
+    function confirmAndSavePrices(e) {
+      e.preventDefault();
+      if (isProcessing) return;
+
+      let code = document.getElementById('pBarcode').value.trim();
+      let ek = document.getElementById('pEk').value;
+      let vk = document.getElementById('pVk').value;
+
+      let msg = `Bitte Preisänderung überprüfen:\n\n` +
+                `Barcode: ${code}\n` +
+                `Neuer EK-Preis: ${ek} €\n` +
+                `Neuer VK-Preis: ${vk} €\n\n` +
+                `Jetzt speichern?`;
+
+      if (confirm(msg)) {
+        savePrices();
+      }
+    }
+
+    // Neue Preise an API senden
     async function savePrices() {
+      isProcessing = true;
       let code = document.getElementById('pBarcode').value.trim();
       let ek = document.getElementById('pEk').value;
       let vk = document.getElementById('pVk').value;
       let status = document.getElementById('pStatus');
+      let saveBtn = document.getElementById('saveBtn');
+
+      saveBtn.disabled = true;
       status.innerText = "Speichere Preise...";
+
       try {
-        let res = await fetch(`${API_URL}?action=updatePrices&barcode=${encodeURIComponent(code)}&ek_preis=${ek}&vk_preis=${vk}`, { redirect: "follow" });
+        let res = await fetch(`${API_URL}?action=updatePrices&barcode=${encodeURIComponent(code)}&ek_preis=${encodeURIComponent(ek)}&vk_preis=${encodeURIComponent(vk)}`, { redirect: "follow" });
         let data = await res.json();
-        status.innerText = data.status === "success" ? "✅ Preise erfolgreich aktualisiert!" : "❌ Fehler: " + data.message;
-      } catch (err) { status.innerText = "❌ Fehler beim Speichern!"; }
+
+        if (data.status === "success") {
+          status.innerText = "✅ Preise erfolgreich aktualisiert!";
+          document.getElementById('priceForm').style.display = "none";
+          document.getElementById('pBarcode').value = "";
+          document.getElementById('pBarcode').focus();
+        } else {
+          status.innerText = "❌ Fehler: " + (data.message || "Unbekannter Fehler");
+        }
+      } catch (err) { 
+        status.innerText = "❌ Fehler beim Speichern!"; 
+      } finally {
+        isProcessing = false;
+        saveBtn.disabled = false;
+      }
     }
   </script>
 </body>
