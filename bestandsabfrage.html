@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lager Beta - Bestandsübersicht</title>
-  <!-- Kamera-Scanner Library Script -->
+  <title>Lager Beta - Einkaufslisten-Verwaltung</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; color: #333; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
     nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
     
-    .card { background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    
+    .card { background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 15px; }
     #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
 
     .filter-box {
@@ -25,112 +25,60 @@
       flex-direction: column;
       gap: 12px;
     }
-    .filter-row {
-      display: flex;
-      gap: 15px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
+    .filter-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
     .filter-box label { font-weight: bold; color: #1e40af; }
-    .filter-input {
-      padding: 8px 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 4px;
-      font-size: 14px;
-      outline: none;
-    }
+    .filter-input { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; outline: none; }
     .filter-input:focus { border-color: #2563eb; }
 
+    .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
     button { 
-      background: #2563eb; 
-      color: #fff; 
-      border: none; 
-      font-weight: bold; 
-      border-radius: 4px; 
-      cursor: pointer; 
-      padding: 10px 15px;
-      margin-bottom: 15px;
-      width: 100%;
-      box-sizing: border-box;
+      background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; 
+      cursor: pointer; padding: 10px 15px; flex: 1; min-width: 140px; box-sizing: border-box; 
     }
     button:hover { background: #1d4ed8; }
+    .btn-save { background: #16a34a; }
+    .btn-save:hover { background: #15803d; }
+    .btn-pdf { background: #059669; }
+    .btn-pdf:hover { background: #047857; }
+    .btn-secondary { background: #64748b; }
+    .btn-secondary:hover { background: #475569; }
     .btn-cancel { background: #dc2626; }
     .btn-cancel:hover { background: #b91c1c; }
     
+    .list-manager-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
     .table-container { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
     th { background: #f8fafc; color: #1e293b; font-weight: bold; }
     tr:hover { background: #f1f5f9; }
+    tr.selected-row { background: #f0fdf4; }
     
-    .badge-zero {
-      color: #dc2626;
-      font-weight: bold;
-      background: #fef2f2;
-      padding: 2px 8px;
-      border-radius: 4px;
-      border: 1px solid #fecaca;
-      display: inline-block;
-    }
-    .badge-stock {
-      color: #16a34a;
-      font-weight: bold;
-      background: #f0fdf4;
-      padding: 2px 8px;
-      border-radius: 4px;
-      border: 1px solid #bbf7d0;
-      display: inline-block;
-    }
-    .badge-platz {
-      background: #e2e8f0;
-      color: #334155;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 12px;
-      margin-right: 4px;
-      display: inline-block;
-    }
+    .badge-zero { color: #dc2626; font-weight: bold; background: #fef2f2; padding: 2px 8px; border-radius: 4px; border: 1px solid #fecaca; }
+    .badge-stock { color: #16a34a; font-weight: bold; background: #f0fdf4; padding: 2px 8px; border-radius: 4px; border: 1px solid #bbf7d0; }
+    .badge-platz { background: #e2e8f0; color: #334155; padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-right: 4px; }
     
-    /* Statustypen */
-    #status { 
-      margin-top: 10px; 
-      padding: 10px;
-      border-radius: 4px;
-      font-weight: bold; 
-      background-color: #f1f5f9;
-      color: #475569; 
-    }
+    .qty-input { width: 70px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; }
+
+    #status { margin-top: 10px; padding: 10px; border-radius: 4px; font-weight: bold; background-color: #f1f5f9; color: #475569; }
     .status-loading { background-color: #e0f2fe !important; color: #0369a1 !important; border: 1px solid #bae6fd; }
     .status-error { background-color: #fef2f2 !important; color: #dc2626 !important; border: 1px solid #fecaca; }
     .status-success { background-color: #f0fdf4 !important; color: #16a34a !important; border: 1px solid #bbf7d0; }
 
-    /* Modal Styling */
-    .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    .modal-box {
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      max-width: 320px;
-      width: 90%;
-      text-align: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-box { background: #fff; padding: 20px; border-radius: 8px; max-width: 320px; width: 90%; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .modal-box h3 { margin-top: 0; }
-    .confirm-code { 
-      font-size: 18px; 
-      font-weight: bold; 
-      color: #2563eb; 
-      margin: 10px 0;
-      word-break: break-all;
-    }
+    .confirm-code { font-size: 18px; font-weight: bold; color: #2563eb; margin: 10px 0; word-break: break-all; }
     .btn-group { display: flex; gap: 10px; margin-top: 15px; }
     .btn-group button { flex: 1; margin-bottom: 0; }
   </style>
@@ -147,16 +95,24 @@
   </nav>
 
   <div class="card">
-    <h2 id="pageTitle"> Bestandsabfrage und Bestände auf 0 (⚠️)</h2>
+    <h2 id="pageTitle">🛒 Einkaufslisten-Verwaltung</h2>
 
-    <!-- Kamerabereich für den Barcode-Scan -->
+    <!-- Gespeicherte Listen verwalten -->
+    <div class="list-manager-box">
+      <strong>📁 Gespeicherte Listen:</strong>
+      <select id="savedListsDropdown" class="filter-input" style="flex: 1; min-width: 200px;">
+        <option value="">-- Keine Liste ausgewählt --</option>
+      </select>
+      <button class="btn-secondary" style="flex: 0; min-width: 100px;" onclick="loadSelectedList()">📂 Laden</button>
+      <button class="btn-cancel" style="flex: 0; min-width: 100px;" onclick="deleteSelectedList()">🗑️ Löschen</button>
+    </div>
+
     <div id="reader"></div>
 
-    <!-- Erweiterter Filter-Bereich -->
     <div class="filter-box">
       <div class="filter-row">
-        <span><strong>Ansicht:</strong></span>
-        <label><input type="radio" name="viewMode" value="zero" checked onchange="switchViewMode()"> ⚠️ Nur Nullbestand</label>
+        <span><strong>Auswahlbasis:</strong></span>
+        <label><input type="radio" name="viewMode" value="zero" checked onchange="switchViewMode()"> ⚠️ Nur Bestand 0</label>
         <label><input type="radio" name="viewMode" value="all" onchange="switchViewMode()"> 📦 Alle Artikel</label>
       </div>
       
@@ -174,7 +130,13 @@
       </div>
     </div>
 
-    <button onclick="loadArticles()">🔄 Daten aktualisieren</button>
+    <div class="action-buttons">
+      <button class="btn-secondary" onclick="loadArticles()">🔄 Aktualisieren</button>
+      <button class="btn-secondary" onclick="selectAll(true)">☑️ Alle wählen</button>
+      <button class="btn-secondary" onclick="selectAll(false)">☐ Alle abwählen</button>
+      <button class="btn-save" onclick="saveCurrentList()">💾 Einkaufsliste speichern</button>
+      <button class="btn-pdf" onclick="generateShoppingListPDF()">📄 PDF Drucken</button>
+    </div>
 
     <div id="status">Bereit.</div>
 
@@ -182,12 +144,13 @@
       <table id="stockTable" style="display: none;">
         <thead>
           <tr>
+            <th style="width: 40px; text-align: center;">Kauf</th>
             <th>Barcode</th>
             <th>Warenname</th>
+            <th>Akt. Bestand</th>
             <th>EK-Preis (€)</th>
-            <th>VK-Preis (€)</th>
-            <th>Bestand</th>
-            <th>Lagerplatz / Plätze</th>
+            <th style="width: 100px;">Bestellmenge</th>
+            <th>Lagerplatz</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -195,7 +158,6 @@
     </div>
   </div>
 
-  <!-- Bestätigungs-Modal für den Kamera-Scan -->
   <div id="confirmModal" class="modal-overlay">
     <div class="modal-box">
       <h3>Eingabe bestätigen</h3>
@@ -211,18 +173,15 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
     let rawArticlesData = [];
+    let shoppingCart = new Map(); // Barcode -> Menge
     let pendingScanText = "";
     let isPaused = false;
 
-    // Scanner Initialisieren
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
-    
     scanner.render((text) => {
       if (isPaused) return;
-
       try { scanner.pause(true); } catch(e){}
       isPaused = true;
-
       pendingScanText = text;
       document.getElementById('modalCode').innerText = text;
       document.getElementById('confirmModal').style.display = "flex";
@@ -230,8 +189,7 @@
 
     function acceptScanCode() {
       document.getElementById('confirmModal').style.display = "none";
-      const searchInput = document.getElementById('searchBarcode');
-      searchInput.value = pendingScanText;
+      document.getElementById('searchBarcode').value = pendingScanText;
       applyFilters();
       resumeScanner();
     }
@@ -247,18 +205,12 @@
       try { scanner.resume(); } catch(e){}
     }
 
-    document.addEventListener("DOMContentLoaded", loadArticles);
+    document.addEventListener("DOMContentLoaded", () => {
+      loadArticles();
+      updateSavedListsDropdown();
+    });
 
     function switchViewMode() {
-      const mode = document.querySelector('input[name="viewMode"]:checked').value;
-      const title = document.getElementById("pageTitle");
-      
-      if (mode === "zero") {
-        title.innerText = "⚠️ Artikel ohne Bestand (0 auf Lager)";
-      } else {
-        title.innerText = "📦 Gesamtübersicht aller Artikel & Lagerplätze";
-      }
-
       loadArticles();
     }
 
@@ -270,52 +222,32 @@
 
       statusDiv.style.display = "block";
       statusDiv.className = "status-loading";
-      statusDiv.innerText = "⏳ Suche läuft: Daten werden vom Server abgerufen...";
+      statusDiv.innerText = "⏳ Lade Artikeldaten vom Server...";
       table.style.display = "none";
       tbody.innerHTML = "";
 
-      if (typeof google !== "undefined" && google.script && google.script.run) {
-        if (viewMode === "all" && google.script.run.getAllArticles) {
-          google.script.run
-            .withSuccessHandler(handleDataLoaded)
-            .withFailureHandler(showError)
-            .getAllArticles();
+      try {
+        const actionParam = viewMode === "all" ? "getAllArticles" : "getZeroStock";
+        let response = await fetch(`${API_URL}?action=${actionParam}`);
+        let res = await response.json();
+        
+        if (res.status === "success") {
+          rawArticlesData = res.data || [];
+          populateLocationDropdown(rawArticlesData);
+          applyFilters();
         } else {
-          google.script.run
-            .withSuccessHandler(handleDataLoaded)
-            .withFailureHandler(showError)
-            .getZeroStockArticles();
+          showError(new Error(res.message || "Fehler beim Laden"));
         }
-      } 
-      else {
-        try {
-          const actionParam = viewMode === "all" ? "getAllArticles" : "getZeroStock";
-          let response = await fetch(`${API_URL}?action=${actionParam}`);
-          if (!response.ok) throw new Error("Netzwerk-Antwort war nicht ok (" + response.status + ")");
-          
-          let res = await response.json();
-          if (res.status === "success") {
-            handleDataLoaded(res.data);
-          } else {
-            showError(new Error(res.message || "Fehler beim Abrufen der Daten"));
-          }
-        } catch (err) {
-          showError(err);
-        }
+      } catch (err) {
+        showError(err);
       }
-    }
-
-    function handleDataLoaded(data) {
-      rawArticlesData = data || [];
-      populateLocationDropdown(rawArticlesData);
-      applyFilters();
     }
 
     function populateLocationDropdown(articles) {
       const locationSelect = document.getElementById("searchLocation");
       const currentSelected = locationSelect.value;
-      
       const locations = new Set();
+      
       articles.forEach(item => {
         if (item.platz) locations.add(String(item.platz).trim());
         if (item.plaetze) item.plaetze.forEach(p => locations.add(String(p).trim()));
@@ -330,7 +262,6 @@
           locationSelect.appendChild(opt);
         }
       });
-
       locationSelect.value = currentSelected;
     }
 
@@ -348,39 +279,21 @@
       if (!rawArticlesData || rawArticlesData.length === 0) {
         statusDiv.style.display = "block";
         statusDiv.className = "status-success";
-        statusDiv.innerText = viewMode === "zero" 
-          ? "🎉 Keines der Produkte ist aktuell auf Bestand 0!" 
-          : "Keine Artikel vorhanden.";
+        statusDiv.innerText = "Keine Artikel vorhanden.";
         table.style.display = "none";
         return;
       }
 
-      const articleMap = new Map();
-
-      rawArticlesData.forEach(item => {
-        const key = String(item.barcode || "").trim();
-        if (!key) return;
-
-        if (!articleMap.has(key)) {
-          articleMap.set(key, {
-            barcode: item.barcode,
-            name: item.name,
-            ek: item.ek,
-            vk: item.vk,
-            bestand: Number(item.bestand || 0),
-            plaetze: new Set(item.platz ? [item.platz] : (item.plaetze || []))
-          });
-        } else {
-          const existing = articleMap.get(key);
-          existing.bestand += Number(item.bestand || 0);
-          if (item.platz) existing.plaetze.add(item.platz);
-        }
-      });
-
-      let displayList = Array.from(articleMap.values());
+      let displayList = rawArticlesData.map(item => ({
+        barcode: item.barcode,
+        name: item.name,
+        ek: Number(item.ek || 0),
+        bestand: Number(item.bestand || 0),
+        plaetze: Array.isArray(item.plaetze) ? item.plaetze : (item.platz ? [item.platz] : [])
+      }));
 
       if (viewMode === "zero") {
-        displayList = displayList.filter(a => a.bestand === 0);
+        displayList = displayList.filter(a => a.bestand <= 0);
       }
 
       if (searchBarcode) {
@@ -392,47 +305,224 @@
 
       if (selectedLocation) {
         displayList = displayList.filter(a => 
-          Array.from(a.plaetze).some(p => String(p).toLowerCase() === selectedLocation)
+          a.plaetze.some(p => String(p).toLowerCase() === selectedLocation)
         );
       }
 
       if (displayList.length === 0) {
         statusDiv.className = "status-success";
         statusDiv.style.display = "block";
-        statusDiv.innerText = "🔍 Suche abgeschlossen: Keine passenden Artikel für diese Filterkriterien gefunden.";
+        statusDiv.innerText = "🔍 Keine passenden Artikel gefunden.";
         table.style.display = "none";
         return;
       }
 
-      // Status ausblenden, um Platz für die Ergebnistabelle zu machen
       statusDiv.style.display = "none";
 
       displayList.forEach(item => {
         const row = document.createElement("tr");
+        const isChecked = shoppingCart.has(item.barcode);
+        if (isChecked) row.classList.add("selected-row");
 
-        let plaetzeHtml = "-";
-        if (item.plaetze && item.plaetze.size > 0) {
-          plaetzeHtml = Array.from(item.plaetze)
-            .map(p => `<span class="badge-platz">📍 ${escapeHtml(p)}</span>`)
-            .join(" ");
-        }
+        const qty = shoppingCart.get(item.barcode) || 1;
 
-        const stockBadge = item.bestand === 0 
+        let plaetzeHtml = item.plaetze.length > 0 
+          ? item.plaetze.map(p => `<span class="badge-platz">📍 ${escapeHtml(p)}</span>`).join(" ") 
+          : "-";
+
+        const stockBadge = item.bestand <= 0 
           ? `<span class="badge-zero">0</span>` 
           : `<span class="badge-stock">${item.bestand} Stk.</span>`;
 
         row.innerHTML = `
+          <td style="text-align: center;">
+            <input type="checkbox" id="chk_${item.barcode}" ${isChecked ? "checked" : ""} 
+              onchange="toggleItem('${item.barcode}', this.checked)">
+          </td>
           <td>${escapeHtml(item.barcode)}</td>
           <td><strong>${escapeHtml(item.name)}</strong></td>
-          <td>${Number(item.ek || 0).toFixed(2)} €</td>
-          <td>${Number(item.vk || 0).toFixed(2)} €</td>
           <td>${stockBadge}</td>
+          <td>${item.ek.toFixed(2)} €</td>
+          <td>
+            <input type="number" min="1" class="qty-input" id="qty_${item.barcode}" value="${qty}" 
+              onchange="updateQuantity('${item.barcode}', this.value)">
+          </td>
           <td>${plaetzeHtml}</td>
         `;
         tbody.appendChild(row);
       });
 
       table.style.display = "table";
+    }
+
+    function toggleItem(barcode, isChecked) {
+      const qtyInput = document.getElementById(`qty_${barcode}`);
+      const qty = Number(qtyInput ? qtyInput.value : 1);
+
+      if (isChecked) {
+        shoppingCart.set(barcode, qty);
+      } else {
+        shoppingCart.delete(barcode);
+      }
+      
+      const chkElem = document.getElementById(`chk_${barcode}`);
+      if (chkElem) {
+        const row = chkElem.closest("tr");
+        if (isChecked) row.classList.add("selected-row");
+        else row.classList.remove("selected-row");
+      }
+    }
+
+    function updateQuantity(barcode, value) {
+      const qty = Math.max(1, Number(value) || 1);
+      if (shoppingCart.has(barcode)) {
+        shoppingCart.set(barcode, qty);
+      }
+    }
+
+    function selectAll(checkState) {
+      const checkboxes = document.querySelectorAll('#tableBody input[type="checkbox"]');
+      checkboxes.forEach(chk => {
+        chk.checked = checkState;
+        const barcode = chk.id.replace('chk_', '');
+        toggleItem(barcode, checkState);
+      });
+    }
+
+    /* --- SPEICHER- & LADE-LOGIK VIA LOCALSTORAGE --- */
+
+    function saveCurrentList() {
+      if (shoppingCart.size === 0) {
+        alert("Wählen Sie mindestens einen Artikel aus, bevor Sie eine Liste speichern.");
+        return;
+      }
+
+      const listName = prompt("Geben Sie einen Namen für diese Einkaufsliste ein:", "Einkaufsliste " + new Date().toLocaleDateString('de-DE'));
+      if (!listName || !listName.trim()) return;
+
+      const lists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
+      
+      // Map in Plain Object umwandeln für JSON
+      const itemsObj = {};
+      shoppingCart.forEach((qty, barcode) => {
+        itemsObj[barcode] = qty;
+      });
+
+      lists[listName.trim()] = itemsObj;
+      localStorage.setItem("lager_einkaufslisten", JSON.stringify(lists));
+
+      alert(`✅ Einkaufsliste "${listName}" wurde erfolgreich gespeichert!`);
+      updateSavedListsDropdown(listName.trim());
+    }
+
+    function updateSavedListsDropdown(selectKey = "") {
+      const dropdown = document.getElementById("savedListsDropdown");
+      const lists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
+
+      dropdown.innerHTML = '<option value="">-- Keine Liste ausgewählt --</option>';
+
+      Object.keys(lists).forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        if (name === selectKey) opt.selected = true;
+        dropdown.appendChild(opt);
+      });
+    }
+
+    function loadSelectedList() {
+      const name = document.getElementById("savedListsDropdown").value;
+      if (!name) {
+        alert("Bitte wählen Sie eine Liste aus dem Menü aus.");
+        return;
+      }
+
+      const lists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
+      const savedItems = lists[name];
+
+      if (!savedItems) {
+        alert("Liste konnte nicht gefunden werden.");
+        return;
+      }
+
+      // Aktuelle Auswahl leeren und geladene Liste einlesen
+      shoppingCart.clear();
+      Object.keys(savedItems).forEach(barcode => {
+        shoppingCart.set(barcode, savedItems[barcode]);
+      });
+
+      // Filter aktualisieren, damit geladene Haken gesetzt werden
+      applyFilters();
+      alert(`📂 Einkaufsliste "${name}" geladen!`);
+    }
+
+    function deleteSelectedList() {
+      const name = document.getElementById("savedListsDropdown").value;
+      if (!name) return;
+
+      if (confirm(`Möchten Sie die gespeicherte Liste "${name}" wirklich löschen?`)) {
+        const lists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
+        delete lists[name];
+        localStorage.setItem("lager_einkaufslisten", JSON.stringify(lists));
+        updateSavedListsDropdown();
+        alert(`🗑️ Liste "${name}" wurde gelöscht.`);
+      }
+    }
+
+    /* --- PDF LOGIK --- */
+
+    function generateShoppingListPDF() {
+      if (shoppingCart.size === 0) {
+        alert("Bitte wählen Sie mindestens einen Artikel aus!");
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("EINKAUFSLISTE / NACHBESTELLUNG", 14, 20);
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')} - ${new Date().toLocaleTimeString('de-DE')}`, 14, 28);
+
+      const tableData = [];
+      let totalEstimatedCost = 0;
+
+      shoppingCart.forEach((qty, barcode) => {
+        const item = rawArticlesData.find(a => String(a.barcode) === String(barcode));
+        if (item) {
+          const ek = Number(item.ek || 0);
+          const totalEk = ek * qty;
+          totalEstimatedCost += totalEk;
+
+          tableData.push([
+            item.barcode,
+            item.name,
+            `${qty} Stk.`,
+            `${ek.toFixed(2)} €`,
+            `${totalEk.toFixed(2)} €`,
+            Array.isArray(item.plaetze) ? item.plaetze.join(", ") : (item.platz || "-")
+          ]);
+        }
+      });
+
+      doc.autoTable({
+        startY: 35,
+        head: [['Barcode', 'Artikelbeschreibung', 'Bestellmenge', 'EK-Preis', 'Gesamt-EK', 'Lagerort']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] }
+      });
+
+      let finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Geschätzte Gesamtkosten (EK): ${totalEstimatedCost.toFixed(2)} EUR`, 14, finalY);
+
+      doc.save(`Einkaufsliste_${new Date().toISOString().slice(0,10)}.pdf`);
     }
 
     function showError(err) {
