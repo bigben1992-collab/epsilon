@@ -20,8 +20,9 @@
     .filter-box { display: flex; flex-wrap: wrap; gap: 10px; }
     .filter-group { flex: 1; min-width: 140px; }
     
-    button { width: 100%; padding: 10px; margin: 5px 0; background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    button { width: 100%; padding: 10px; margin: 5px 0; background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
     button:hover { background: #1d4ed8; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
     
     .results { margin-top: 20px; border-top: 2px solid #f4f6f8; padding-top: 10px; }
     .metric { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
@@ -61,7 +62,7 @@
       </div>
     </div>
 
-    <button onclick="ladeBilanz()">Bilanz berechnen</button>
+    <button id="btnBerechnen" onclick="ladeBilanz()">Bilanz berechnen</button>
 
     <div class="results">
       <div class="metric">
@@ -100,50 +101,58 @@
       }
     });
 
-    function ladeBilanz() {
+    async function ladeBilanz() {
       const von = document.getElementById("vonDatum").value;
       const bis = document.getElementById("bisDatum").value;
       const artikel = document.getElementById("artikelFilter").value;
+      const btn = document.getElementById("btnBerechnen");
+
+      // Validierung der Datumseingaben
+      if (von && bis && von > bis) {
+        alert("Das 'Von'-Datum darf nicht nach dem 'Bis'-Datum liegen.");
+        return;
+      }
+
+      // Visuelles Feedback aktivieren
+      const originalBtnText = btn.innerText;
+      btn.disabled = true;
+      btn.innerText = "Berechne...";
 
       const url = `${WEB_APP_URL}?action=getFinance&von=${encodeURIComponent(von)}&bis=${encodeURIComponent(bis)}&artikel=${encodeURIComponent(artikel)}`;
 
-      fetch(url)
-        .then(res => res.json())
-        .then(data => {
-          if (data.status === "success") {
-            document.getElementById("wareneinsatz").innerText = data.data.wareneinsatzEK + " €";
-            document.getElementById("umsatz").innerText = data.data.umsatzVK + " €";
-            
-            const rohgewinnEl = document.getElementById("rohgewinn");
-            const rohgewinnWert = parseFloat(data.data.rohgewinn.toString().replace(',', '.'));
-            
-            rohgewinnEl.innerText = data.data.rohgewinn + " €";
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
 
-            if (rohgewinnWert < 0) {
-              rohgewinnEl.className = "negative";
-            } else {
-              rohgewinnEl.className = "highlight";
-            }
+        if (data.status === "success" && data.data) {
+          document.getElementById("wareneinsatz").innerText = `${data.data.wareneinsatzEK ?? "0.00"} €`;
+          document.getElementById("umsatz").innerText = `${data.data.umsatzVK ?? "0.00"} €`;
 
-            // Labels dynamsich basierend auf 'isHistorisch' anpassen
-            if (data.data.isHistorisch) {
-              document.getElementById("lbl-lagerwert").innerText = "Lagerwert EK (zum Stichtag):";
-              document.getElementById("lbl-lagerwertVK").innerText = "Lagerwert VK (zum Stichtag):";
-            } else {
-              document.getElementById("lbl-lagerwert").innerText = "Aktueller Lagerwert (EK):";
-              document.getElementById("lbl-lagerwertVK").innerText = "Aktueller Lagerwert (VK):";
-            }
+          const rohgewinnEl = document.getElementById("rohgewinn");
+          const rohGewinnRaw = (data.data.rohgewinn ?? "0").toString().replace(',', '.');
+          const rohgewinnWert = parseFloat(rohGewinnRaw) || 0;
 
-            document.getElementById("lagerwert").innerText = data.data.lagerwert + " €";
-            document.getElementById("lagerwertVK").innerText = data.data.lagerwertVK + " €";
-          } else {
-            alert("Fehler beim Abrufen der Bilanz: " + data.message);
-          }
-        })
-        .catch(err => {
-          console.error(err);
-          alert("Netzwerkfehler.");
-        });
+          rohgewinnEl.innerText = `${data.data.rohgewinn ?? "0.00"} €`;
+          rohgewinnEl.className = rohgewinnWert < 0 ? "negative" : "highlight";
+
+          // Dynamische Label-Anpassung
+          const isHist = Boolean(data.data.isHistorisch);
+          document.getElementById("lbl-lagerwert").innerText = isHist ? "Lagerwert EK (zum Stichtag):" : "Aktueller Lagerwert (EK):";
+          document.getElementById("lbl-lagerwertVK").innerText = isHist ? "Lagerwert VK (zum Stichtag):" : "Aktueller Lagerwert (VK):";
+
+          document.getElementById("lagerwert").innerText = `${data.data.lagerwert ?? "0.00"} €`;
+          document.getElementById("lagerwertVK").innerText = `${data.data.lagerwertVK ?? "0.00"} €`;
+        } else {
+          alert("Fehler beim Abrufen der Bilanz: " + (data.message || "Unbekannter Fehler"));
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Netzwerkfehler beim Abrufen der Daten.");
+      } finally {
+        // Button-Status zurücksetzen
+        btn.disabled = false;
+        btn.innerText = originalBtnText;
+      }
     }
 
     window.onload = ladeBilanz;
