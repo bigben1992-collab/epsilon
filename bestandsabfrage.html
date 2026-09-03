@@ -57,6 +57,17 @@
       flex-wrap: wrap;
     }
 
+    .active-filter-badge {
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: bold;
+      border: 1px solid #bfdbfe;
+      display: none;
+    }
+
     .table-container { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
@@ -105,6 +116,11 @@
       </select>
       <button class="btn-secondary" style="flex: 0; min-width: 100px;" onclick="loadSelectedList()">📂 Laden</button>
       <button class="btn-cancel" style="flex: 0; min-width: 100px;" onclick="deleteSelectedList()">🗑️ Löschen</button>
+      <button id="btnClearFilter" class="btn-secondary" style="flex: 0; min-width: 120px; display: none;" onclick="clearActiveListFilter()">❌ Filter aufheben</button>
+    </div>
+
+    <div id="activeFilterBadge" class="active-filter-badge">
+      📌 Aktiver Listen-Filter: <span id="activeListName"></span>
     </div>
 
     <div id="reader"></div>
@@ -174,6 +190,7 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
     let rawArticlesData = [];
     let shoppingCart = new Map(); // Barcode -> Menge
+    let activeListName = null; // Speichert den Namen der geladenen Liste als Filter
     let pendingScanText = "";
     let isPaused = false;
 
@@ -292,7 +309,11 @@
         plaetze: Array.isArray(item.plaetze) ? item.plaetze : (item.platz ? [item.platz] : [])
       }));
 
-      if (viewMode === "zero") {
+      // WENN EINE LISTE GELADEN IST: Nur Artikel anzeigen, die in dieser Liste vorhanden sind
+      if (activeListName) {
+        displayList = displayList.filter(a => shoppingCart.has(a.barcode));
+      } else if (viewMode === "zero") {
+        // Nur filtern wenn keine gespeicherte Liste als Filter aktiv ist
         displayList = displayList.filter(a => a.bestand <= 0);
       }
 
@@ -324,7 +345,8 @@
         const isChecked = shoppingCart.has(item.barcode);
         if (isChecked) row.classList.add("selected-row");
 
-        const qty = shoppingCart.get(item.barcode) || 1;
+        // Voreingestellte Menge ist jetzt 0 (statt 1)
+        const qty = shoppingCart.has(item.barcode) ? shoppingCart.get(item.barcode) : 0;
 
         let plaetzeHtml = item.plaetze.length > 0 
           ? item.plaetze.map(p => `<span class="badge-platz">📍 ${escapeHtml(p)}</span>`).join(" ") 
@@ -344,7 +366,7 @@
           <td>${stockBadge}</td>
           <td>${item.ek.toFixed(2)} €</td>
           <td>
-            <input type="number" min="1" class="qty-input" id="qty_${item.barcode}" value="${qty}" 
+            <input type="number" min="0" class="qty-input" id="qty_${item.barcode}" value="${qty}" 
               onchange="updateQuantity('${item.barcode}', this.value)">
           </td>
           <td>${plaetzeHtml}</td>
@@ -357,7 +379,7 @@
 
     function toggleItem(barcode, isChecked) {
       const qtyInput = document.getElementById(`qty_${barcode}`);
-      const qty = Number(qtyInput ? qtyInput.value : 1);
+      const qty = Number(qtyInput ? qtyInput.value : 0);
 
       if (isChecked) {
         shoppingCart.set(barcode, qty);
@@ -374,7 +396,7 @@
     }
 
     function updateQuantity(barcode, value) {
-      const qty = Math.max(1, Number(value) || 1);
+      const qty = Math.max(0, Number(value) || 0);
       if (shoppingCart.has(barcode)) {
         shoppingCart.set(barcode, qty);
       }
@@ -397,12 +419,12 @@
         return;
       }
 
-      const listName = prompt("Geben Sie einen Namen für diese Einkaufsliste ein:", "Einkaufsliste " + new Date().toLocaleDateString('de-DE'));
+      const defaultName = activeListName || ("Einkaufsliste " + new Date().toLocaleDateString('de-DE'));
+      const listName = prompt("Geben Sie einen Namen für diese Einkaufsliste ein:", defaultName);
       if (!listName || !listName.trim()) return;
 
       const lists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
       
-      // Map in Plain Object umwandeln für JSON
       const itemsObj = {};
       shoppingCart.forEach((qty, barcode) => {
         itemsObj[barcode] = qty;
@@ -451,9 +473,23 @@
         shoppingCart.set(barcode, savedItems[barcode]);
       });
 
-      // Filter aktualisieren, damit geladene Haken gesetzt werden
+      // Geladene Liste als Filter setzen
+      activeListName = name;
+      document.getElementById("activeListName").innerText = name;
+      document.getElementById("activeFilterBadge").style.display = "block";
+      document.getElementById("btnClearFilter").style.display = "inline-block";
+
+      // Ansicht filtern & Tabelle erneuern
       applyFilters();
-      alert(`📂 Einkaufsliste "${name}" geladen!`);
+    }
+
+    function clearActiveListFilter() {
+      activeListName = null;
+      document.getElementById("activeFilterBadge").style.display = "none";
+      document.getElementById("btnClearFilter").style.display = "none";
+      document.getElementById("savedListsDropdown").value = "";
+      shoppingCart.clear();
+      applyFilters();
     }
 
     function deleteSelectedList() {
@@ -464,6 +500,11 @@
         const lists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
         delete lists[name];
         localStorage.setItem("lager_einkaufslisten", JSON.stringify(lists));
+        
+        if (activeListName === name) {
+          clearActiveListFilter();
+        }
+
         updateSavedListsDropdown();
         alert(`🗑️ Liste "${name}" wurde gelöscht.`);
       }
@@ -482,7 +523,8 @@
 
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("EINKAUFSLISTE / NACHBESTELLUNG", 14, 20);
+      const title = activeListName ? `EINKAUFSLISTE: ${activeListName.toUpperCase()}` : "EINKAUFSLISTE / NACHBESTELLUNG";
+      doc.text(title, 14, 20);
 
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
@@ -522,7 +564,11 @@
       doc.setFont("helvetica", "bold");
       doc.text(`Geschätzte Gesamtkosten (EK): ${totalEstimatedCost.toFixed(2)} EUR`, 14, finalY);
 
-      doc.save(`Einkaufsliste_${new Date().toISOString().slice(0,10)}.pdf`);
+      const filename = activeListName 
+        ? `Einkaufsliste_${activeListName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+        : `Einkaufsliste_${new Date().toISOString().slice(0,10)}.pdf`;
+
+      doc.save(filename);
     }
 
     function showError(err) {
