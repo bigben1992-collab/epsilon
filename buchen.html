@@ -8,14 +8,86 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
-    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
-    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
-    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
-    .card { background: #fff; padding: 15px; border-radius: 6px; }
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg-body: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+    }
+
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      margin: 0; 
+      padding: 16px; 
+      background: var(--bg-body); 
+      color: var(--text-main);
+    }
+
+    /* Modernisierte Header-Navigation */
+    header {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid var(--border-color);
+    }
+
+    nav { 
+      display: flex; 
+      gap: 6px; 
+      flex-wrap: wrap; 
+      align-items: center;
+    }
+
+    nav a { 
+      text-decoration: none; 
+      color: var(--text-muted); 
+      font-weight: 500; 
+      font-size: 14px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    nav a:hover { 
+      background: #f8fafc;
+      color: var(--primary);
+    }
+
+    nav a.active { 
+      color: var(--primary); 
+      background: #eff6ff;
+      font-weight: 600;
+    }
+
+    .card { 
+      background: var(--card-bg); 
+      padding: 20px; 
+      border-radius: 12px; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid var(--border-color);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 20px;
+      color: var(--text-main);
+    }
+
     #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
     input, select, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
-    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    button { background: var(--primary); color: #fff; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; }
+    button:hover { background: var(--primary-hover); }
     button:disabled { background: #94a3b8; cursor: not-allowed; }
     .btn-pdf { background: #059669; margin-top: 10px; }
     .btn-cancel { background: #dc2626; }
@@ -44,32 +116,63 @@
       background: #eff6ff;
       padding: 8px 10px;
       border: 1px solid #bfdbfe;
-      border-radius: 4px;
+      border-radius: 6px;
     }
 
-    /* Info-Box für aktuelle Bestandsorte des Artikels */
+    /* Überarbeiteter Bereich für vorhandene Bestandsorte */
     #stockLocationBox {
-      background: #e0f2fe;
-      border: 1px solid #bae6fd;
-      padding: 10px;
-      border-radius: 6px;
-      margin: 5px 0 10px 0;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 10px 0;
       display: none;
-      font-size: 13px;
-      color: #0369a1;
+    }
+    .stock-box-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .place-tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
     }
     .place-tag {
-      display: inline-block;
-      background: #0284c7;
-      color: white;
-      padding: 5px 10px;
-      border-radius: 4px;
-      font-weight: bold;
-      margin: 3px 4px 3px 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     }
-    .place-tag:hover { background: #0369a1; }
+    .place-tag:hover { 
+      background: #0284c7; 
+      color: #ffffff;
+      border-color: #0284c7;
+      transform: translateY(-1px);
+    }
+    .place-tag .badge-qty {
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+    .place-tag:hover .badge-qty {
+      background: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+    }
 
     #productInfoBox {
       background: #f0fdf4;
@@ -121,14 +224,17 @@
   </style>
 </head>
 <body>
-  <nav>
-    <a href="index.html">🏠 Menü</a> |
-    <a href="artikel.html">Artikelabfrage & Etikettendruck</a> |
-    <a href="platz.html">Platzabfrage</a> |
-    <a href="bestandsabfrage.html">Bestandsabfrage</a> |
-    <a href="bilanz.html">Bilanz</a> |
-    <a href="verwaltung.html">Verwaltung</a>
-  </nav>
+
+  <header>
+    <nav>
+      <a href="index.html">🏠 Menü</a>
+      <a href="artikel.html">Artikelabfrage & Etikettendruck</a>
+      <a href="platz.html">Platzabfrage</a>
+      <a href="bestandsabfrage.html">Bestandsabfrage</a>
+      <a href="bilanz.html">Bilanz</a>
+      <a href="verwaltung.html">Verwaltung</a>
+    </nav>
+  </header>
 
   <div class="card">
     <h2>Ware Buchen (EK / VK)</h2>
@@ -146,8 +252,8 @@
 
       <!-- Live-Anzeige der aktuellen Lagerorte des Artikels -->
       <div id="stockLocationBox">
-        <strong>📍 Vorhandene Lagerplätze (Klick zum Auswählen):</strong>
-        <div id="stockList" style="margin-top: 5px;"></div>
+        <div class="stock-box-title">📍 Vorhandene Lagerplätze (Klick zum Auswählen):</div>
+        <div id="stockList" class="place-tags-container"></div>
       </div>
 
       <input type="text" id="name" placeholder="Warenname (optional)">
@@ -299,7 +405,7 @@
       }
     }
 
-    // Artikeldaten & aktuelle Standorte abfragen (Kompatibel mit inventur.html Backend-Format)
+    // Artikeldaten & aktuelle Standorte abfragen
     async function fetchArticleInfo(code) {
       if (!code) return;
 
@@ -332,7 +438,6 @@
             status.innerText = "";
           }
 
-          // Verarbeite data.plaetze (Objekt wie in inventur.html oder Array)
           let plaetzeObj = data.plaetze || info.plaetze || {};
           let html = "";
           let foundPlaces = false;
@@ -341,12 +446,12 @@
             plaetzeObj.forEach(p => {
               let pName = p.platz || p.name || p;
               let pMenge = p.menge !== undefined ? p.menge : "?";
-              html += `<span class="place-tag" onclick="selectPlace('${pName}')">📍 ${pName} (${pMenge} Stk.)</span> `;
+              html += `<span class="place-tag" onclick="selectPlace('${pName}')">📍 ${pName} <span class="badge-qty">${pMenge} Stk.</span></span>`;
               foundPlaces = true;
             });
           } else if (typeof plaetzeObj === 'object') {
             for (let p in plaetzeObj) {
-              html += `<span class="place-tag" onclick="selectPlace('${p}')">📍 ${p} (${plaetzeObj[p]} Stk.)</span> `;
+              html += `<span class="place-tag" onclick="selectPlace('${p}')">📍 ${p} <span class="badge-qty">${plaetzeObj[p]} Stk.</span></span>`;
               foundPlaces = true;
             }
           }
