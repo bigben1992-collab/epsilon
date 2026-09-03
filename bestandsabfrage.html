@@ -309,12 +309,6 @@
       rawArticlesData = data || [];
       populateLocationDropdown(rawArticlesData);
       applyFilters();
-      
-      const statusDiv = document.getElementById("status");
-      if (rawArticlesData.length > 0) {
-        statusDiv.className = "status-success";
-        statusDiv.innerText = `✅ Suche abgeschlossen: ${rawArticlesData.length} Datensätze geladen.`;
-      }
     }
 
     function populateLocationDropdown(articles) {
@@ -352,10 +346,12 @@
       tbody.innerHTML = "";
 
       if (!rawArticlesData || rawArticlesData.length === 0) {
+        statusDiv.style.display = "block";
         statusDiv.className = "status-success";
         statusDiv.innerText = viewMode === "zero" 
           ? "🎉 Keines der Produkte ist aktuell auf Bestand 0!" 
           : "Keine Artikel vorhanden.";
+        table.style.display = "none";
         return;
       }
 
@@ -408,6 +404,9 @@
         return;
       }
 
+      // Status ausblenden, um Platz für die Ergebnistabelle zu machen
+      statusDiv.style.display = "none";
+
       displayList.forEach(item => {
         const row = document.createElement("tr");
 
@@ -434,12 +433,11 @@
       });
 
       table.style.display = "table";
-      statusDiv.className = "status-success";
-      statusDiv.innerText = `✅ Suche abgeschlossen: ${displayList.length} Treffer angezeigt.`;
     }
 
     function showError(err) {
       const statusDiv = document.getElementById("status");
+      statusDiv.style.display = "block";
       statusDiv.className = "status-error";
       statusDiv.innerText = "❌ Fehler beim Abrufen der Daten: " + (err.message || err);
     }
