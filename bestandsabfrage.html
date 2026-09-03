@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lager Beta - Bestandsübersicht</title>
+  <!-- Kamera-Scanner Library Script -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; color: #333; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -11,6 +13,8 @@
     
     .card { background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     
+    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
+
     .filter-box {
       background: #eff6ff;
       border: 1px solid #bfdbfe;
@@ -50,6 +54,8 @@
       box-sizing: border-box;
     }
     button:hover { background: #1d4ed8; }
+    .btn-cancel { background: #dc2626; }
+    .btn-cancel:hover { background: #b91c1c; }
     
     .table-container { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -85,9 +91,48 @@
       display: inline-block;
     }
     
-    #status { margin-top: 10px; font-weight: bold; color: #475569; }
-    .status-error { color: #dc2626; }
-    .status-success { color: #16a34a; }
+    /* Statustypen */
+    #status { 
+      margin-top: 10px; 
+      padding: 10px;
+      border-radius: 4px;
+      font-weight: bold; 
+      background-color: #f1f5f9;
+      color: #475569; 
+    }
+    .status-loading { background-color: #e0f2fe !important; color: #0369a1 !important; border: 1px solid #bae6fd; }
+    .status-error { background-color: #fef2f2 !important; color: #dc2626 !important; border: 1px solid #fecaca; }
+    .status-success { background-color: #f0fdf4 !important; color: #16a34a !important; border: 1px solid #bbf7d0; }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-box h3 { margin-top: 0; }
+    .confirm-code { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #2563eb; 
+      margin: 10px 0;
+      word-break: break-all;
+    }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-group button { flex: 1; margin-bottom: 0; }
   </style>
 </head>
 <body>
@@ -103,6 +148,9 @@
 
   <div class="card">
     <h2 id="pageTitle"> Bestandsabfrage und Bestände auf 0 (⚠️)</h2>
+
+    <!-- Kamerabereich für den Barcode-Scan -->
+    <div id="reader"></div>
 
     <!-- Erweiterter Filter-Bereich -->
     <div class="filter-box">
@@ -128,7 +176,7 @@
 
     <button onclick="loadArticles()">🔄 Daten aktualisieren</button>
 
-    <div id="status">Lade Daten...</div>
+    <div id="status">Bereit.</div>
 
     <div class="table-container">
       <table id="stockTable" style="display: none;">
@@ -147,9 +195,57 @@
     </div>
   </div>
 
+  <!-- Bestätigungs-Modal für den Kamera-Scan -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Eingabe bestätigen</h3>
+      <p>Gescannter Code für Suchfeld:</p>
+      <div id="modalCode" class="confirm-code"></div>
+      <div class="btn-group">
+        <button onclick="acceptScanCode()">✅ Übernehmen</button>
+        <button class="btn-cancel" onclick="rejectScanCode()">❌ Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
-    let rawArticlesData = []; // Zwischenspeicher für geladene Rohdaten
+    let rawArticlesData = [];
+    let pendingScanText = "";
+    let isPaused = false;
+
+    // Scanner Initialisieren
+    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    
+    scanner.render((text) => {
+      if (isPaused) return;
+
+      try { scanner.pause(true); } catch(e){}
+      isPaused = true;
+
+      pendingScanText = text;
+      document.getElementById('modalCode').innerText = text;
+      document.getElementById('confirmModal').style.display = "flex";
+    });
+
+    function acceptScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      const searchInput = document.getElementById('searchBarcode');
+      searchInput.value = pendingScanText;
+      applyFilters();
+      resumeScanner();
+    }
+
+    function rejectScanCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      pendingScanText = "";
+      resumeScanner();
+    }
+
+    function resumeScanner() {
+      isPaused = false;
+      try { scanner.resume(); } catch(e){}
+    }
 
     document.addEventListener("DOMContentLoaded", loadArticles);
 
@@ -173,8 +269,8 @@
       const viewMode = document.querySelector('input[name="viewMode"]:checked').value;
 
       statusDiv.style.display = "block";
-      statusDiv.className = "";
-      statusDiv.innerText = "Lade Artikeldaten...";
+      statusDiv.className = "status-loading";
+      statusDiv.innerText = "⏳ Suche läuft: Daten werden vom Server abgerufen...";
       table.style.display = "none";
       tbody.innerHTML = "";
 
@@ -213,9 +309,14 @@
       rawArticlesData = data || [];
       populateLocationDropdown(rawArticlesData);
       applyFilters();
+      
+      const statusDiv = document.getElementById("status");
+      if (rawArticlesData.length > 0) {
+        statusDiv.className = "status-success";
+        statusDiv.innerText = `✅ Suche abgeschlossen: ${rawArticlesData.length} Datensätze geladen.`;
+      }
     }
 
-    // Befüllt das Lagerort-Dropdown automatisch mit allen vorhandenen Orten
     function populateLocationDropdown(articles) {
       const locationSelect = document.getElementById("searchLocation");
       const currentSelected = locationSelect.value;
@@ -258,7 +359,6 @@
         return;
       }
 
-      // Aggregation je Barcode
       const articleMap = new Map();
 
       rawArticlesData.forEach(item => {
@@ -283,12 +383,10 @@
 
       let displayList = Array.from(articleMap.values());
 
-      // 1. Modus-Filter (Nullbestand)
       if (viewMode === "zero") {
         displayList = displayList.filter(a => a.bestand === 0);
       }
 
-      // 2. Barcode/Name Filter
       if (searchBarcode) {
         displayList = displayList.filter(a => 
           String(a.barcode).toLowerCase().includes(searchBarcode) || 
@@ -296,7 +394,6 @@
         );
       }
 
-      // 3. Lagerort Filter
       if (selectedLocation) {
         displayList = displayList.filter(a => 
           Array.from(a.plaetze).some(p => String(p).toLowerCase() === selectedLocation)
@@ -306,12 +403,10 @@
       if (displayList.length === 0) {
         statusDiv.className = "status-success";
         statusDiv.style.display = "block";
-        statusDiv.innerText = "Keine passenden Artikel für diese Filterkriterien gefunden.";
+        statusDiv.innerText = "🔍 Suche abgeschlossen: Keine passenden Artikel für diese Filterkriterien gefunden.";
         table.style.display = "none";
         return;
       }
-
-      statusDiv.style.display = "none";
 
       displayList.forEach(item => {
         const row = document.createElement("tr");
@@ -339,12 +434,14 @@
       });
 
       table.style.display = "table";
+      statusDiv.className = "status-success";
+      statusDiv.innerText = `✅ Suche abgeschlossen: ${displayList.length} Treffer angezeigt.`;
     }
 
     function showError(err) {
       const statusDiv = document.getElementById("status");
       statusDiv.className = "status-error";
-      statusDiv.innerText = "❌ Fehler beim Laden: " + (err.message || err);
+      statusDiv.innerText = "❌ Fehler beim Abrufen der Daten: " + (err.message || err);
     }
 
     function escapeHtml(text) {
