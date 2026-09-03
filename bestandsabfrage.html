@@ -45,13 +45,30 @@
     .btn-cancel { background: #dc2626; }
     .btn-cancel:hover { background: #b91c1c; }
     
+    /* Toggle Button & Klapp-Container */
+    .toggle-list-btn {
+      background: #0f766e;
+      color: #fff;
+      font-weight: bold;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    .toggle-list-btn:hover { background: #115e59; }
+
     .list-manager-box {
       background: #f8fafc;
-      border: 1px solid #e2e8f0;
+      border: 1px solid #cbd5e1;
       padding: 12px;
       border-radius: 6px;
       margin-bottom: 15px;
-      display: flex;
+      display: none; /* Inital zugeklappt */
       gap: 10px;
       align-items: center;
       flex-wrap: wrap;
@@ -60,12 +77,13 @@
     .active-filter-badge {
       background: #dbeafe;
       color: #1e40af;
-      padding: 4px 10px;
+      padding: 6px 12px;
       border-radius: 4px;
       font-size: 13px;
       font-weight: bold;
       border: 1px solid #bfdbfe;
       display: none;
+      margin-bottom: 10px;
     }
 
     .table-container { overflow-x: auto; }
@@ -108,23 +126,10 @@
   <div class="card">
     <h2 id="pageTitle">🛒 Einkaufslisten-Verwaltung</h2>
 
-    <!-- Gespeicherte Listen verwalten -->
-    <div class="list-manager-box">
-      <strong>📁 Gespeicherte Listen:</strong>
-      <select id="savedListsDropdown" class="filter-input" style="flex: 1; min-width: 200px;">
-        <option value="">-- Keine Liste ausgewählt --</option>
-      </select>
-      <button class="btn-secondary" style="flex: 0; min-width: 100px;" onclick="loadSelectedList()">📂 Laden</button>
-      <button class="btn-cancel" style="flex: 0; min-width: 100px;" onclick="deleteSelectedList()">🗑️ Löschen</button>
-      <button id="btnClearFilter" class="btn-secondary" style="flex: 0; min-width: 120px; display: none;" onclick="clearActiveListFilter()">❌ Filter aufheben</button>
-    </div>
-
-    <div id="activeFilterBadge" class="active-filter-badge">
-      📌 Aktiver Listen-Filter: <span id="activeListName"></span>
-    </div>
-
+    <!-- Scanner / Kamera ganz oben -->
     <div id="reader"></div>
 
+    <!-- Hauptfilter & Steuerung -->
     <div class="filter-box">
       <div class="filter-row">
         <span><strong>Auswahlbasis:</strong></span>
@@ -154,6 +159,26 @@
       <button class="btn-pdf" onclick="generateShoppingListPDF()">📄 PDF Drucken</button>
     </div>
 
+    <!-- EINKAUFSLISTEN-VERWALTUNG (Ausklappbar über der Ergebnisanzeige) -->
+    <button class="toggle-list-btn" onclick="toggleListManager()">
+      <span>📁 Gespeicherte Einkaufslisten verwalten</span>
+      <span id="toggleIcon">▼</span>
+    </button>
+
+    <div id="listManagerBox" class="list-manager-box">
+      <select id="savedListsDropdown" class="filter-input" style="flex: 1; min-width: 200px;">
+        <option value="">-- Keine Liste ausgewählt --</option>
+      </select>
+      <button class="btn-secondary" style="flex: 0; min-width: 100px;" onclick="loadSelectedList()">📂 Laden</button>
+      <button class="btn-cancel" style="flex: 0; min-width: 100px;" onclick="deleteSelectedList()">🗑️ Löschen</button>
+      <button id="btnClearFilter" class="btn-secondary" style="flex: 0; min-width: 120px; display: none;" onclick="clearActiveListFilter()">❌ Filter aufheben</button>
+    </div>
+
+    <div id="activeFilterBadge" class="active-filter-badge">
+      📌 Aktiver Listen-Filter: <span id="activeListName"></span>
+    </div>
+
+    <!-- Statusmeldung & Ergebnisanzeige (Tabelle) -->
     <div id="status">Bereit.</div>
 
     <div class="table-container">
@@ -190,7 +215,7 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
     let rawArticlesData = [];
     let shoppingCart = new Map(); // Barcode -> Menge
-    let activeListName = null; // Speichert den Namen der geladenen Liste als Filter
+    let activeListName = null;
     let pendingScanText = "";
     let isPaused = false;
 
@@ -226,6 +251,19 @@
       loadArticles();
       updateSavedListsDropdown();
     });
+
+    /* Toggle-Funktion für die Listenverwaltung */
+    function toggleListManager() {
+      const box = document.getElementById("listManagerBox");
+      const icon = document.getElementById("toggleIcon");
+      if (box.style.display === "none" || box.style.display === "") {
+        box.style.display = "flex";
+        icon.innerText = "▲";
+      } else {
+        box.style.display = "none";
+        icon.innerText = "▼";
+      }
+    }
 
     function switchViewMode() {
       loadArticles();
@@ -309,11 +347,9 @@
         plaetze: Array.isArray(item.plaetze) ? item.plaetze : (item.platz ? [item.platz] : [])
       }));
 
-      // WENN EINE LISTE GELADEN IST: Nur Artikel anzeigen, die in dieser Liste vorhanden sind
       if (activeListName) {
         displayList = displayList.filter(a => shoppingCart.has(a.barcode));
       } else if (viewMode === "zero") {
-        // Nur filtern wenn keine gespeicherte Liste als Filter aktiv ist
         displayList = displayList.filter(a => a.bestand <= 0);
       }
 
@@ -345,7 +381,6 @@
         const isChecked = shoppingCart.has(item.barcode);
         if (isChecked) row.classList.add("selected-row");
 
-        // Voreingestellte Menge ist jetzt 0 (statt 1)
         const qty = shoppingCart.has(item.barcode) ? shoppingCart.get(item.barcode) : 0;
 
         let plaetzeHtml = item.plaetze.length > 0 
@@ -411,7 +446,7 @@
       });
     }
 
-    /* --- SPEICHER- & LADE-LOGIK VIA LOCALSTORAGE --- */
+    /* --- LOCALSTORAGE SPEICHERUNG --- */
 
     function saveCurrentList() {
       if (shoppingCart.size === 0) {
@@ -467,19 +502,16 @@
         return;
       }
 
-      // Aktuelle Auswahl leeren und geladene Liste einlesen
       shoppingCart.clear();
       Object.keys(savedItems).forEach(barcode => {
         shoppingCart.set(barcode, savedItems[barcode]);
       });
 
-      // Geladene Liste als Filter setzen
       activeListName = name;
       document.getElementById("activeListName").innerText = name;
       document.getElementById("activeFilterBadge").style.display = "block";
       document.getElementById("btnClearFilter").style.display = "inline-block";
 
-      // Ansicht filtern & Tabelle erneuern
       applyFilters();
     }
 
