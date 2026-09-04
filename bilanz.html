@@ -1,306 +1,206 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lager Beta - Bilanz & Auswertung</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <!-- jsPDF & AutoTable für PDF-Export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-  
+  <base target="_top">
+  <!-- Chart.js für Diagramme einbinden -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
-    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
-    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
-    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
-    .card { background: #fff; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f8f9fa; color: #333; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .kpi-container { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
+    .kpi { flex: 1; min-width: 150px; background: #eef2f5; padding: 15px; border-radius: 6px; text-align: center; }
+    .kpi h4 { margin: 0 0 5px 0; color: #666; font-size: 14px; }
+    .kpi .val { font-size: 20px; font-weight: bold; color: #2c3e50; }
     
-    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
-
-    label { font-size: 13px; font-weight: bold; color: #1e40af; display: block; margin-top: 5px; }
-    input { width: 100%; padding: 10px; margin: 5px 0 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+    .chart-container { position: relative; max-width: 600px; margin: auto; height: 320px; }
+    .btn-group { display: flex; justify-content: center; margin-bottom: 15px; gap: 10px; }
+    .btn-group button { padding: 8px 16px; border: 1px solid #007bff; background: white; color: #007bff; border-radius: 4px; cursor: pointer; }
+    .btn-group button.active { background: #007bff; color: white; }
     
-    .filter-box { display: flex; flex-wrap: wrap; gap: 10px; }
-    .filter-group { flex: 1; min-width: 140px; }
-    
-    .button-group { display: flex; gap: 10px; margin-top: 10px; }
-    button { flex: 1; padding: 10px; background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
-    button:hover { background: #1d4ed8; }
-    button:disabled { background: #94a3b8; cursor: not-allowed; }
-    button.btn-pdf { background: #059669; }
-    button.btn-pdf:hover { background: #047857; }
-    
-    .results { margin-top: 20px; border-top: 2px solid #f4f6f8; padding-top: 10px; }
-    .metric { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
-    .metric-title { font-weight: bold; color: #334155; }
-    .highlight { font-size: 1.1em; color: #16a34a; font-weight: bold; }
-    .negative { font-size: 1.1em; color: #dc2626; font-weight: bold; }
-
-    /* Tabelle für Einzeltransaktionen */
-    .table-container { overflow-x: auto; margin-top: 15px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
-    th, td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-    th { background-color: #f8fafc; color: #1e40af; }
-    .badge-ek { background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-    .badge-vk { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #2c3e50; color: white; }
+    tr:nth-child(even) { background: #f2f2f2; }
   </style>
 </head>
 <body>
 
-  <nav>
-    <a href="index.html">🏠 Menü</a> |
-    <a href="buchen.html">Buchen (EK/VK)</a> |
-    <a href="artikel.html">Artikelabfrage & Etikettendruck</a> |
-    <a href="platz.html">Platzabfrage</a> |
-    <a href="bestandsabfrage.html">Bestandsabfrage</a> |
-    <a href="verwaltung.html">Verwaltung</a>
-  </nav>
-
   <div class="card">
-    <h2>Finanzbilanz</h2>
-
-    <div id="reader"></div>
-
-    <div class="filter-box">
-      <div class="filter-group">
-        <label for="vonDatum">Von Datum:</label>
-        <input type="date" id="vonDatum">
-      </div>
-      <div class="filter-group">
-        <label for="bisDatum">Bis Datum:</label>
-        <input type="date" id="bisDatum">
-      </div>
-      <div class="filter-group" style="flex: 100%;">
-        <label for="artikelFilter">Artikel / Barcode (optional):</label>
-        <input type="text" id="artikelFilter" placeholder="z. B. Barcode oder Artikelname und Enter drücken">
-      </div>
+    <h2>📊 Finanzübersicht & Prozent-Analyse</h2>
+    
+    <!-- Filter -->
+    <div style="display:flex; gap:10px; margin-bottom: 20px; flex-wrap: wrap;">
+      <label>Von: <input type="date" id="filterVon"></label>
+      <label>Bis: <input type="date" id="filterBis"></label>
+      <label>Artikel/Barcode: <input type="text" id="filterArtikel" placeholder="Optional..."></label>
+      <button onclick="loadFinanceData()" style="padding:5px 15px;">Daten laden</button>
     </div>
 
-    <div class="button-group">
-      <button id="btnBerechnen" onclick="ladeBilanz()">Bilanz berechnen</button>
-      <button id="btnPdf" class="btn-pdf" onclick="exportPDF()" disabled>📄 PDF Export</button>
-    </div>
-
-    <div class="results">
-      <div class="metric">
-        <span class="metric-title">Wareneinkauf (EK):</span>
-        <span id="wareneinsatz">0.00 €</span>
-      </div>
-      <div class="metric">
-        <span class="metric-title">Umsatz (VK):</span>
-        <span id="umsatz">0.00 €</span>
-      </div>
-      <div class="metric">
-        <span class="metric-title">Rohgewinn:</span>
-        <span id="rohgewinn" class="highlight">0.00 €</span>
-      </div>
-      <div class="metric">
-        <span class="metric-title" id="lbl-lagerwert">Aktueller Lagerwert (EK):</span>
-        <span id="lagerwert">0.00 €</span>
-      </div>
-      <div class="metric">
-        <span class="metric-title" id="lbl-lagerwertVK">Aktueller Lagerwert (VK):</span>
-        <span id="lagerwertVK">0.00 €</span>
-      </div>
+    <!-- KPI Dashboard -->
+    <div class="kpi-container">
+      <div class="kpi"><h4>Lagerwert (EK)</h4><div class="val" id="valLagerwert">0,00 €</div></div>
+      <div class="kpi"><h4>Umsatz (VK)</h4><div class="val" id="valUmsatz">0,00 €</div></div>
+      <div class="kpi"><h4>Wareneinsatz (EK)</h4><div class="val" id="valEK">0,00 €</div></div>
+      <div class="kpi"><h4>Rohgewinn</h4><div class="val" id="valRohgewinn">0,00 €</div></div>
     </div>
   </div>
 
-  <div class="card" id="transaktionenCard" style="display: none;">
-    <h3>Einzeltransaktionen im Zeitraum</h3>
-    <div class="table-container">
-      <table id="transaktionenTabelle">
-        <thead>
-          <tr>
-            <th>Datum</th>
-            <th>Typ</th>
-            <th>Artikel / Barcode</th>
-            <th>Menge</th>
-            <th>Einzelpreis</th>
-            <th>Gesamt</th>
-          </tr>
-        </thead>
-        <tbody id="transaktionenBody">
-        </tbody>
-      </table>
+  <!-- Diagramm Sektion -->
+  <div class="card">
+    <h3>Prozentuale Verteilung pro Artikel</h3>
+    <div class="btn-group">
+      <button id="btnTabLager" class="active" onclick="switchChartTab('lager')">Kapitalbindung / Lagerwert (%)</button>
+      <button id="btnTabUmsatz" onclick="switchChartTab('umsatz')">Umsatzbeitrag (%)</button>
     </div>
+    
+    <div class="chart-container">
+      <canvas id="financeChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Transaktionen Sektion -->
+  <div class="card">
+    <h3>Einzeltransaktionen im Zeitraum</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Typ</th>
+          <th>Artikel</th>
+          <th>Menge</th>
+          <th>Einzelpreis (€)</th>
+          <th>Gesamt (€)</th>
+        </tr>
+      </thead>
+      <tbody id="tblTransaktionen">
+        <tr><td colspan="6" style="text-align:center;">Keine Daten geladen.</td></tr>
+      </tbody>
+    </table>
   </div>
 
   <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    var globalFinanceData = null;
+    var chartInstance = null;
+    var currentChartMode = 'lager';
 
-    let aktuelleTransaktionen = [];
-    let aktuelleBilanzData = null;
+    function loadFinanceData() {
+      var von = document.getElementById('filterVon').value;
+      var bis = document.getElementById('filterBis').value;
+      var artikel = document.getElementById('filterArtikel').value;
 
-    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
-    
-    scanner.render((text) => {
-      let isCorrect = confirm(`Gescannter Code: ${text}\nAls Filter für die Bilanz übernehmen?`);
-      if (isCorrect) {
-        document.getElementById('artikelFilter').value = text;
-        ladeBilanz();
-      }
-    });
-
-    // Auto-Submit bei Enter-Taste im Suchfeld
-    document.getElementById("artikelFilter").addEventListener("keypress", function(e) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        ladeBilanz();
-      }
-    });
-
-    async function ladeBilanz() {
-      const von = document.getElementById("vonDatum").value;
-      const bis = document.getElementById("bisDatum").value;
-      const artikel = document.getElementById("artikelFilter").value;
-      const btn = document.getElementById("btnBerechnen");
-      const btnPdf = document.getElementById("btnPdf");
-
-      if (von && bis && von > bis) {
-        alert("Das 'Von'-Datum darf nicht nach dem 'Bis'-Datum liegen.");
-        return;
-      }
-
-      const originalBtnText = btn.innerText;
-      btn.disabled = true;
-      btn.innerText = "Berechne...";
-      btnPdf.disabled = true;
-
-      const url = `${WEB_APP_URL}?action=getFinance&von=${encodeURIComponent(von)}&bis=${encodeURIComponent(bis)}&artikel=${encodeURIComponent(artikel)}`;
-
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.status === "success" && data.data) {
-          aktuelleBilanzData = data.data;
-          aktuelleTransaktionen = data.data.transaktionen || [];
-
-          document.getElementById("wareneinsatz").innerText = `${data.data.wareneinsatzEK ?? "0.00"} €`;
-          document.getElementById("umsatz").innerText = `${data.data.umsatzVK ?? "0.00"} €`;
-
-          const rohgewinnEl = document.getElementById("rohgewinn");
-          const rohGewinnRaw = (data.data.rohgewinn ?? "0").toString().replace(',', '.');
-          const rohgewinnWert = parseFloat(rohGewinnRaw) || 0;
-
-          rohgewinnEl.innerText = `${data.data.rohgewinn ?? "0.00"} €`;
-          rohgewinnEl.className = rohgewinnWert < 0 ? "negative" : "highlight";
-
-          const isHist = Boolean(data.data.isHistorisch);
-          document.getElementById("lbl-lagerwert").innerText = isHist ? "Lagerwert EK (zum Stichtag):" : "Aktueller Lagerwert (EK):";
-          document.getElementById("lbl-lagerwertVK").innerText = isHist ? "Lagerwert VK (zum Stichtag):" : "Aktueller Lagerwert (VK):";
-
-          document.getElementById("lagerwert").innerText = `${data.data.lagerwert ?? "0.00"} €`;
-          document.getElementById("lagerwertVK").innerText = `${data.data.lagerwertVK ?? "0.00"} €`;
-
-          // Transaktionstabelle rendern
-          rendereTransaktionen(aktuelleTransaktionen);
-          btnPdf.disabled = false;
-        } else {
-          alert("Fehler beim Abrufen der Bilanz: " + (data.message || "Unbekannter Fehler"));
-        }
-      } catch (err) {
-        console.error(err);
-        alert("Netzwerkfehler beim Abrufen der Daten.");
-      } finally {
-        btn.disabled = false;
-        btn.innerText = originalBtnText;
-      }
+      google.script.run
+        .withSuccessHandler(onFinanceDataLoaded)
+        .withFailureHandler(err => alert("Fehler beim Laden: " + err))
+        .handleRequest_({ action: "getFinance", von: von, bis: bis, artikel: artikel });
     }
 
-    function rendereTransaktionen(liste) {
-      const card = document.getElementById("transaktionenCard");
-      const tbody = document.getElementById("transaktionenBody");
-      tbody.innerHTML = "";
+    function onFinanceDataLoaded(response) {
+      if (!response || response.status !== "success") {
+        alert("Fehlerhafte Rückmeldung vom Server.");
+        return;
+      }
+      
+      var data = response.data;
+      globalFinanceData = data;
 
-      if (!liste || liste.length === 0) {
-        card.style.display = "none";
+      // KPIs rendern
+      document.getElementById('valLagerwert').innerText = formatCurrency(data.lagerwert);
+      document.getElementById('valUmsatz').innerText = formatCurrency(data.umsatzVK);
+      document.getElementById('valEK').innerText = formatCurrency(data.wareneinsatzEK);
+      document.getElementById('valRohgewinn').innerText = formatCurrency(data.rohgewinn);
+
+      // Transaktionstabelle rendern
+      renderTable(data.transaktionen);
+
+      // Chart rendern
+      renderCurrentChart();
+    }
+
+    function renderTable(list) {
+      var tbody = document.getElementById('tblTransaktionen');
+      tbody.innerHTML = "";
+      
+      if (!list || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Buchungen gefunden.</td></tr>';
         return;
       }
 
-      liste.forEach(t => {
-        const tr = document.createElement("tr");
-        const badgeClass = t.typ === "EK" ? "badge-ek" : "badge-vk";
-        
+      list.forEach(item => {
+        var tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${t.datum}</td>
-          <td><span class="${badgeClass}">${t.typ}</span></td>
-          <td>${t.artikel}</td>
-          <td>${t.menge}</td>
-          <td>${t.einzelpreis} €</td>
-          <td><strong>${t.gesamt} €</strong></td>
+          <td>${item.datum}</td>
+          <td><strong>${item.typ}</strong></td>
+          <td>${item.artikel}</td>
+          <td>${item.menge}</td>
+          <td>${formatCurrency(item.einzelpreis)}</td>
+          <td>${formatCurrency(item.gesamt)}</td>
         `;
         tbody.appendChild(tr);
       });
-
-      card.style.display = "block";
     }
 
-    function exportPDF() {
-      if (!aktuelleBilanzData) return;
+    function switchChartTab(mode) {
+      currentChartMode = mode;
+      document.getElementById('btnTabLager').classList.toggle('active', mode === 'lager');
+      document.getElementById('btnTabUmsatz').classList.toggle('active', mode === 'umsatz');
+      renderCurrentChart();
+    }
 
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+    function renderCurrentChart() {
+      if (!globalFinanceData) return;
 
-      // Titel
-      doc.setFontSize(18);
-      doc.text("Lager Beta - Finanzbilanz", 14, 20);
+      var items = currentChartMode === 'lager' 
+        ? globalFinanceData.anteilLagerwert 
+        : globalFinanceData.anteilUmsatz;
 
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      const vonStr = document.getElementById("vonDatum").value || "Anfang";
-      const bisStr = document.getElementById("bisDatum").value || "Heute";
-      const filterStr = document.getElementById("artikelFilter").value;
-      
-      let subtext = `Zeitraum: ${vonStr} bis ${bisStr}`;
-      if (filterStr) subtext += ` | Filter: ${filterStr}`;
-      doc.text(subtext, 14, 27);
+      var labels = items.map(i => i.artikel);
+      var values = items.map(i => parseFloat(i.prozent));
 
-      // Kennzahlen Übersicht
-      const summaryRows = [
-        ["Wareneinkauf (EK):", `${aktuelleBilanzData.wareneinsatzEK ?? "0.00"} EUR`],
-        ["Umsatz (VK):", `${aktuelleBilanzData.umsatzVK ?? "0.00"} EUR`],
-        ["Rohgewinn:", `${aktuelleBilanzData.rohgewinn ?? "0.00"} EUR`],
-        [document.getElementById("lbl-lagerwert").innerText, `${aktuelleBilanzData.lagerwert ?? "0.00"} EUR`],
-        [document.getElementById("lbl-lagerwertVK").innerText, `${aktuelleBilanzData.lagerwertVK ?? "0.00"} EUR`]
-      ];
+      var ctx = document.getElementById('financeChart').getContext('2d');
 
-      doc.autoTable({
-        startY: 32,
-        head: [["Kennzahl", "Wert"]],
-        body: summaryRows,
-        theme: "striped",
-        headStyles: { fillColor: [37, 99, 235] }
-      });
-
-      // Transaktionsliste (falls vorhanden)
-      if (aktuelleTransaktionen.length > 0) {
-        const tableBody = aktuelleTransaktionen.map(t => [
-          t.datum,
-          t.typ,
-          t.artikel,
-          t.menge,
-          `${t.einzelpreis} EUR`,
-          `${t.gesamt} EUR`
-        ]);
-
-        doc.text("Einzeltransaktionen", 14, doc.lastAutoTable.finalY + 12);
-
-        doc.autoTable({
-          startY: doc.lastAutoTable.finalY + 16,
-          head: [["Datum", "Typ", "Artikel", "Menge", "Einzelpreis", "Gesamt"]],
-          body: tableBody,
-          theme: "grid",
-          headStyles: { fillColor: [30, 64, 175] }
-        });
+      if (chartInstance) {
+        chartInstance.destroy();
       }
 
-      doc.save(`Finanzbilanz_${vonStr}_bis_${bisStr}.pdf`);
+      if (items.length === 0) {
+        return;
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Anteil (%)',
+            data: values,
+            backgroundColor: [
+              '#2ecc71', '#3498db', '#9b59b6', '#f1c40f', '#e67e22', '#e74c3c', '#34495e', '#1abc9c'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  var rawVal = items[context.dataIndex].wert;
+                  return `${context.label}: ${context.raw}% (${formatCurrency(rawVal)})`;
+                }
+              }
+            }
+          }
+        }
+      });
     }
 
-    window.onload = ladeBilanz;
-  </script>
+    function formatCurrency(val) {
+      return parseFloat(val || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    }
 
+    // Beim Laden automatisch ausführen
+    window.onload = loadFinanceData;
+  </script>
 </body>
 </html>
