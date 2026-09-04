@@ -1,326 +1,326 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lager Beta - Artikel & Druck</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <style>
-    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
-    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
-    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
-    .card { background: #fff; padding: 15px; border-radius: 6px; }
-    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
-    input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
-    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
-    .btn-print { background: #059669; }
-    .btn-export { background: #4f46e5; }
-    .btn-png { background: #d97706; }
-    .btn-cancel { background: #dc2626; }
-    ul { list-style: none; padding: 0; }
-    li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
-    
-    #labelPreview {
-      border: 1px dashed #ccc;
-      padding: 10px;
-      margin-top: 15px;
-      display: none;
-      background: #fff;
-    }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lager Beta - Artikel & Druck</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
+    nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; }
+    #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
+    input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+    button { background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    .btn-print { background: #059669; }
+    .btn-export { background: #4f46e5; }
+    .btn-png { background: #d97706; }
+    .btn-cancel { background: #dc2626; }
+    ul { list-style: none; padding: 0; }
+    li { background: #f8fafc; margin: 5px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; }
+    
+    #labelPreview {
+      border: 1px dashed #ccc;
+      padding: 10px;
+      margin-top: 15px;
+      display: none;
+      background: #fff;
+    }
 
-    /* Anordnung & Dimensionen für 40x14mm Lückenpapier */
-    .label-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 400px;
-      height: 140px;
-      margin: 0 auto;
-      border: 1px solid #000;
-      padding: 6px;
-      border-radius: 6px;
-      background: #fff;
-      box-sizing: border-box;
-      overflow: hidden;
-    }
+    /* Anordnung & Dimensionen für 40x14mm Lückenpapier */
+    .label-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 400px;
+      height: 140px;
+      margin: 0 auto;
+      border: 1px solid #000;
+      padding: 6px;
+      border-radius: 6px;
+      background: #fff;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
 
-    #qrcodeCanvas {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
+    #qrcodeCanvas {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
 
-    #qrcodeCanvas img, #qrcodeCanvas canvas {
-      display: block;
-      width: 120px !important;
-      height: 120px !important;
-    }
+    #qrcodeCanvas img, #qrcodeCanvas canvas {
+      display: block;
+      width: 120px !important;
+      height: 120px !important;
+    }
 
-    .label-details { 
-      text-align: left; 
-      flex: 1; 
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      overflow: hidden;
-    }
+    .label-details { 
+      text-align: left; 
+      flex: 1; 
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
+    }
 
-    .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
-    .btn-group button { flex: 1; min-width: 140px; }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+    .btn-group button { flex: 1; min-width: 140px; }
 
-    /* Modal Styling für Bestätigungsabfrage */
-    .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    .modal-box {
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      max-width: 320px;
-      width: 90%;
-      text-align: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .modal-box h3 { margin-top: 0; }
-    .modal-box .confirm-code { 
-      font-size: 18px; 
-      font-weight: bold; 
-      color: #2563eb; 
-      margin: 10px 0;
-      word-break: break-all;
-    }
+    /* Modal Styling für Bestätigungsabfrage */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .modal-box h3 { margin-top: 0; }
+    .modal-box .confirm-code { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #2563eb; 
+      margin: 10px 0;
+      word-break: break-all;
+    }
 
-    @media print {
-      body * { visibility: hidden; }
-      #printArea, #printArea * { visibility: visible; }
-      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
-      nav, .card > h2, #reader, input, button, .btn-group, .modal-overlay { display: none !important; }
-    }
-  </style>
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+      nav, .card > h2, #reader, input, button, .btn-group, .modal-overlay { display: none !important; }
+    }
+  </style>
 </head>
 <body>
-  <nav>
-    <a href="index.html">🏠 Menü</a> |
-    <a href="buchen.html">Buchen (EK/VK)</a> |
-    <a href="platz.html">Platzabfrage</a> |
-    <a href="bestandsabfrage.html">Bestandsabfrage</a> |
-    <a href="bilanz.html">Bilanz</a> |
-    <a href="verwaltung.html">Verwaltung</a>
-  </nav>
+  <nav>
+    <a href="index.html">🏠 Menü</a> |
+    <a href="buchen.html">Buchen (EK/VK)</a> |
+    <a href="platz.html">Platzabfrage</a> |
+    <a href="bestandsabfrage.html">Bestandsabfrage</a> |
+    <a href="bilanz.html">Bilanz</a> |
+    <a href="verwaltung.html">Verwaltung</a>
+  </nav>
 
-  <div class="card">
-    <h2>Artikelabfrage & Druckansicht</h2>
-    <div id="reader"></div>
+  <div class="card">
+    <h2>Artikelabfrage & Druckansicht</h2>
+    <div id="reader"></div>
 
-    <input type="text" id="barcode" placeholder="Barcode scannen / eingeben">
-    <button onclick="confirmAndQuery(document.getElementById('barcode').value)">Suchen</button>
+    <input type="text" id="barcode" placeholder="Barcode scannen / eingeben">
+    <button onclick="confirmAndQuery(document.getElementById('barcode').value)">Suchen</button>
 
-    <div id="result"></div>
-    
-    <div id="printArea">
-      <div id="labelPreview">
-        <div class="label-container" id="labelCard">
-          <div id="qrcodeCanvas"></div>
-          <div class="label-details">
-            <h4 id="lblTitle" style="margin: 0 0 5px 0; font-size: 14px; word-break: break-word;"></h4>
-            <p id="lblPrices" style="margin: 0; font-size: 16px; font-weight: bold; color: #1e293b;"></p>
-            <small id="lblCode" style="color: #64748b; font-size: 11px;"></small>
-          </div>
-        </div>
-        <div class="btn-group">
-          <button class="btn-print" onclick="window.print()">🖨️ Browser Drucken</button>
-          <button class="btn-export" onclick="exportNiceLabelPDF()">📄 PDF Etikett Exportieren</button>
-          <button class="btn-png" onclick="exportPNG()">🖼️ PNG Etikett Herunterladen</button>
-        </div>
-      </div>
-    </div>
-  </div>
+    <div id="result"></div>
+    
+    <div id="printArea">
+      <div id="labelPreview">
+        <div class="label-container" id="labelCard">
+          <div id="qrcodeCanvas"></div>
+          <div class="label-details">
+            <h4 id="lblTitle" style="margin: 0 0 5px 0; font-size: 14px; word-break: break-word;"></h4>
+            <p id="lblPrices" style="margin: 0; font-size: 16px; font-weight: bold; color: #1e293b;"></p>
+            <small id="lblCode" style="color: #64748b; font-size: 11px;"></small>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn-print" onclick="window.print()">🖨️ Browser Drucken</button>
+          <button class="btn-export" onclick="exportNiceLabelPDF()">📄 PDF Etikett Exportieren</button>
+          <button class="btn-png" onclick="exportPNG()">🖼️ PNG Etikett Herunterladen</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  <!-- Bestätigungs-Modal -->
-  <div id="confirmModal" class="modal-overlay">
-    <div class="modal-box">
-      <h3>Eingabe bestätigen</h3>
-      <p>Möchtest du nach folgendem Code suchen?</p>
-      <div id="modalCode" class="confirm-code"></div>
-      <div class="btn-group">
-        <button onclick="acceptCode()">✅ Ja, Suchen</button>
-        <button class="btn-cancel" onclick="rejectCode()">❌ Abbrechen</button>
-      </div>
-    </div>
-  </div>
+  <!-- Bestätigungs-Modal -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Eingabe bestätigen</h3>
+      <p>Möchtest du nach folgendem Code suchen?</p>
+      <div id="modalCode" class="confirm-code"></div>
+      <div class="btn-group">
+        <button onclick="acceptCode()">✅ Ja, Suchen</button>
+        <button class="btn-cancel" onclick="rejectCode()">❌ Abbrechen</button>
+      </div>
+    </div>
+  </div>
 
-  <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
-    let currentItem = null;
-    let pendingCode = "";
-    let isPaused = false;
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+    let currentItem = null;
+    let pendingCode = "";
+    let isPaused = false;
 
-    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
-    
-    scanner.render((text) => {
-      if (isPaused) return;
+    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+    
+    scanner.render((text) => {
+      if (isPaused) return;
 
-      try {
-        scanner.pause(true);
-      } catch (e) {
-        console.log("Scanner Pause nicht verfügbar", e);
-      }
-      
-      isPaused = true;
-      confirmAndQuery(text);
-    });
+      try {
+        scanner.pause(true);
+      } catch (e) {
+        console.log("Scanner Pause nicht verfügbar", e);
+      }
+      
+      isPaused = true;
+      confirmAndQuery(text);
+    });
 
-    function confirmAndQuery(code) {
-      code = code ? code.trim() : "";
-      if (!code) return;
+    function confirmAndQuery(code) {
+      code = code ? code.trim() : "";
+      if (!code) return;
 
-      pendingCode = code;
-      document.getElementById('modalCode').innerText = code;
-      document.getElementById('confirmModal').style.display = "flex";
-    }
+      pendingCode = code;
+      document.getElementById('modalCode').innerText = code;
+      document.getElementById('confirmModal').style.display = "flex";
+    }
 
-    function acceptCode() {
-      document.getElementById('confirmModal').style.display = "none";
-      document.getElementById('barcode').value = pendingCode;
-      queryArticle(pendingCode);
-    }
+    function acceptCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      document.getElementById('barcode').value = pendingCode;
+      queryArticle(pendingCode);
+    }
 
-    function rejectCode() {
-      document.getElementById('confirmModal').style.display = "none";
-      pendingCode = "";
-      resumeScanner();
-    }
+    function rejectCode() {
+      document.getElementById('confirmModal').style.display = "none";
+      pendingCode = "";
+      resumeScanner();
+    }
 
-    function resumeScanner() {
-      isPaused = false;
-      try {
-        scanner.resume();
-      } catch (e) {
-        console.log("Scanner Resume nicht verfügbar", e);
-      }
-    }
+    function resumeScanner() {
+      isPaused = false;
+      try {
+        scanner.resume();
+      } catch (e) {
+        console.log("Scanner Resume nicht verfügbar", e);
+      }
+    }
 
-    async function queryArticle(code) {
-      if (!code) return;
+    async function queryArticle(code) {
+      if (!code) return;
 
-      document.getElementById('result').innerText = "Lade Daten...";
-      document.getElementById('labelPreview').style.display = "none";
+      document.getElementById('result').innerText = "Lade Daten...";
+      document.getElementById('labelPreview').style.display = "none";
 
-      try {
-        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`, { redirect: "follow" });
-        let data = await res.json();
+      try {
+        let res = await fetch(`${API_URL}?action=getArticle&barcode=${encodeURIComponent(code)}`, { redirect: "follow" });
+        let data = await res.json();
 
-        if (!data.info || (data.info.name === "Unbekannt" && Object.keys(data.plaetze).length === 0)) {
-          document.getElementById('result').innerHTML = "<p>Kein Artikel gefunden.</p>";
-          resumeScanner();
-          return;
-        }
+        if (!data.info || (data.info.name === "Unbekannt" && Object.keys(data.plaetze).length === 0)) {
+          document.getElementById('result').innerHTML = "<p>Kein Artikel gefunden.</p>";
+          resumeScanner();
+          return;
+        }
 
-        currentItem = data.info;
-        currentItem.barcode = code;
+        currentItem = data.info;
+        currentItem.barcode = code;
 
-        let html = `<h3>${data.info.name}</h3>
-                    <p>EK: <b>${data.info.ek_preis} €</b> | VK: <b>${data.info.vk_preis} €</b></p>
-                    <p>Gesamtbestand: <b>${data.info.gesamtbestand} Stück</b></p><ul>`;
-        for (let p in data.plaetze) {
-          html += `<li>Lagerplatz <b>${p}</b>: ${data.plaetze[p]} Stück</li>`;
-        }
-        html += '</ul>';
-        document.getElementById('result').innerHTML = html;
+        let html = `<h3>${data.info.name}</h3>
+                    <p>EK: <b>${data.info.ek_preis} €</b> | VK: <b>${data.info.vk_preis} €</b></p>
+                    <p>Gesamtbestand: <b>${data.info.gesamtbestand} Stück</b></p><ul>`;
+        for (let p in data.plaetze) {
+          html += `<li>Lagerplatz <b>${p}</b>: ${data.plaetze[p]} Stück</li>`;
+        }
+        html += '</ul>';
+        document.getElementById('result').innerHTML = html;
 
-        document.getElementById('lblTitle').innerText = data.info.name;
-        document.getElementById('lblPrices').innerText = `Verkaufspreis: ${data.info.vk_preis} €`;
-        document.getElementById('lblCode').innerText = code;
+        document.getElementById('lblTitle').innerText = data.info.name;
+        document.getElementById('lblPrices').innerText = `Verkaufspreis: ${data.info.vk_preis} €`;
+        document.getElementById('lblCode').innerText = code;
 
-        const qrContainer = document.getElementById("qrcodeCanvas");
-        qrContainer.innerHTML = "";
-        new QRCode(qrContainer, {
-          text: code,
-          width: 120,
-          height: 120,
-          correctLevel: QRCode.CorrectLevel.M
-        });
+        const qrContainer = document.getElementById("qrcodeCanvas");
+        qrContainer.innerHTML = "";
+        new QRCode(qrContainer, {
+          text: code,
+          width: 120,
+          height: 120,
+          correctLevel: QRCode.CorrectLevel.M
+        });
 
-        document.getElementById('labelPreview').style.display = "block";
+        document.getElementById('labelPreview').style.display = "block";
 
-      } catch (err) {
-        document.getElementById('result').innerText = "Fehler beim Laden!";
-      } finally {
-        resumeScanner();
-      }
-    }
+      } catch (err) {
+        document.getElementById('result').innerText = "Fehler beim Laden!";
+      } finally {
+        resumeScanner();
+      }
+    }
 
-    function exportNiceLabelPDF() {
-      if (!currentItem) return;
+    function exportNiceLabelPDF() {
+      if (!currentItem) return;
 
-      const qrCanvas = document.querySelector("#qrcodeCanvas canvas");
-      const qrImg = document.querySelector("#qrcodeCanvas img");
-      let imgData = null;
+      const qrCanvas = document.querySelector("#qrcodeCanvas canvas");
+      const qrImg = document.querySelector("#qrcodeCanvas img");
+      let imgData = null;
 
-      if (qrCanvas) {
-        imgData = qrCanvas.toDataURL("image/png");
-      } else if (qrImg && qrImg.src) {
-        imgData = qrImg.src;
-      }
+      if (qrCanvas) {
+        imgData = qrCanvas.toDataURL("image/png");
+      } else if (qrImg && qrImg.src) {
+        imgData = qrImg.src;
+      }
 
-      if (!imgData) {
-        alert("QR-Code konnte für den PDF-Export noch nicht ausgelesen werden.");
-        return;
-      }
+      if (!imgData) {
+        alert("QR-Code konnte für den PDF-Export noch nicht ausgelesen werden.");
+        return;
+      }
 
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: [50, 30]
-      });
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: [50, 30]
+      });
 
-      doc.addImage(imgData, "PNG", 3, 3, 24, 24);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      const splitTitle = doc.splitTextToSize(currentItem.name, 20);
-      doc.text(splitTitle, 29, 7);
+      doc.addImage(imgData, "PNG", 3, 3, 24, 24);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      const splitTitle = doc.splitTextToSize(currentItem.name, 20);
+      doc.text(splitTitle, 29, 7);
 
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.text(`VK: ${currentItem.vk_preis} €`, 29, 21);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(`VK: ${currentItem.vk_preis} €`, 29, 21);
 
-      doc.setFontSize(6);
-      doc.setFont("helvetica", "normal");
-      doc.text(currentItem.barcode, 29, 25);
+      doc.setFontSize(6);
+      doc.setFont("helvetica", "normal");
+      doc.text(currentItem.barcode, 29, 25);
 
-      doc.save(`Etikett_QR_${currentItem.barcode}.pdf`);
-    }
+      doc.save(`Etikett_QR_${currentItem.barcode}.pdf`);
+    }
 
-    async function exportPNG() {
-      if (!currentItem) return;
+    async function exportPNG() {
+      if (!currentItem) return;
 
-      const labelCard = document.getElementById('labelCard');
+      const labelCard = document.getElementById('labelCard');
 
-      try {
-        const canvas = await html2canvas(labelCard, { scale: 3 });
-        const image = canvas.toDataURL("image/png");
+      try {
+        const canvas = await html2canvas(labelCard, { scale: 3 });
+        const image = canvas.toDataURL("image/png");
 
-        const downloadLink = document.createElement("a");
-        downloadLink.href = image;
-        downloadLink.download = `Etikett_${currentItem.barcode}.png`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-      } catch (err) {
-        alert("Fehler beim Erstellen des PNGs!");
-      }
-    }
-  </script>
+        const downloadLink = document.createElement("a");
+        downloadLink.href = image;
+        downloadLink.download = `Etikett_${currentItem.barcode}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      } catch (err) {
+        alert("Fehler beim Erstellen des PNGs!");
+      }
+    }
+  </script>
 </body>
 </html>
