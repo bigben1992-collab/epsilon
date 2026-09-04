@@ -21,6 +21,7 @@
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background: #2c3e50; color: white; }
     tr:nth-child(even) { background: #f2f2f2; }
+    .status-msg { margin-top: 10px; font-weight: bold; color: #d35400; }
   </style>
 </head>
 <body>
@@ -29,15 +30,16 @@
     <h2>📊 Finanzübersicht & Prozent-Analyse</h2>
     
     <!-- Filter -->
-    <div style="display:flex; gap:10px; margin-bottom: 20px; flex-wrap: wrap;">
+    <div style="display:flex; gap:10px; margin-bottom: 10px; flex-wrap: wrap;">
       <label>Von: <input type="date" id="filterVon"></label>
       <label>Bis: <input type="date" id="filterBis"></label>
       <label>Artikel/Barcode: <input type="text" id="filterArtikel" placeholder="Optional..."></label>
       <button onclick="loadFinanceData()" style="padding:5px 15px;">Daten laden</button>
     </div>
+    <div id="statusText" class="status-msg"></div>
 
     <!-- KPI Dashboard -->
-    <div class="kpi-container">
+    <div class="kpi-container" style="margin-top:15px;">
       <div class="kpi"><h4>Lagerwert (EK)</h4><div class="val" id="valLagerwert">0,00 €</div></div>
       <div class="kpi"><h4>Umsatz (VK)</h4><div class="val" id="valUmsatz">0,00 €</div></div>
       <div class="kpi"><h4>Wareneinsatz (EK)</h4><div class="val" id="valEK">0,00 €</div></div>
@@ -79,27 +81,56 @@
   </div>
 
   <script>
+    // ⚠️ HIER IHRE DEPLOYTE WEB-APP-URL EINTRAGEN (falls die HTML lokal oder extern läuft)
+    const WEB_APP_URL = "https://script.google.com/macros/s/DEINE_EXEC_ID_HIER/exec";
+
     var globalFinanceData = null;
     var chartInstance = null;
     var currentChartMode = 'lager';
 
+    function setStatus(text) {
+      document.getElementById('statusText').innerText = text;
+    }
+
     function loadFinanceData() {
+      setStatus("Lade Daten...");
+      
       var von = document.getElementById('filterVon').value;
       var bis = document.getElementById('filterBis').value;
       var artikel = document.getElementById('filterArtikel').value;
 
-      google.script.run
-        .withSuccessHandler(onFinanceDataLoaded)
-        .withFailureHandler(err => alert("Fehler beim Laden: " + err))
-        .handleRequest_({ action: "getFinance", von: von, bis: bis, artikel: artikel });
+      var payload = { action: "getFinance", von: von, bis: bis, artikel: artikel };
+
+      // 1. Prüfen, ob die Datei in Google Apps Script läuft (google.script.run verfügbar)
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(onFinanceDataLoaded)
+          .withFailureHandler(function(err) {
+            setStatus("Fehler: " + err);
+          })
+          .handleRequest_(payload);
+      } 
+      // 2. Falls extern geöffnet, direkte HTTP/Fetch-Anfrage an die Web-App-URL nutzen
+      else if (WEB_APP_URL && !WEB_APP_URL.includes("DEINE_EXEC_ID_HIER")) {
+        var params = new URLSearchParams(payload).toString();
+        fetch(WEB_APP_URL + "?" + params)
+          .then(response => response.json())
+          .then(data => onFinanceDataLoaded(data))
+          .catch(err => setStatus("Netzwerkfehler: " + err));
+      } 
+      // 3. Wenn weder noch zutrifft
+      else {
+        setStatus("⚠️ Bitte tragen Sie oben im Script die 'WEB_APP_URL' Ihres Backends ein!");
+      }
     }
 
     function onFinanceDataLoaded(response) {
       if (!response || response.status !== "success") {
-        alert("Fehlerhafte Rückmeldung vom Server.");
+        setStatus("Fehler beim Laden der Daten: " + (response ? response.message : "Keine Antwort"));
         return;
       }
       
+      setStatus(""); // Status zurücksetzen
       var data = response.data;
       globalFinanceData = data;
 
@@ -109,10 +140,8 @@
       document.getElementById('valEK').innerText = formatCurrency(data.wareneinsatzEK);
       document.getElementById('valRohgewinn').innerText = formatCurrency(data.rohgewinn);
 
-      // Transaktionstabelle rendern
+      // Transaktionstabelle & Chart rendern
       renderTable(data.transaktionen);
-
-      // Chart rendern
       renderCurrentChart();
     }
 
@@ -121,7 +150,7 @@
       tbody.innerHTML = "";
       
       if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Buchungen gefunden.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Buchungen im Zeitraum gefunden.</td></tr>';
         return;
       }
 
@@ -199,7 +228,7 @@
       return parseFloat(val || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
     }
 
-    // Beim Laden automatisch ausführen
+    // Beim Laden der Seite automatisch Daten abrufen
     window.onload = loadFinanceData;
   </script>
 </body>
