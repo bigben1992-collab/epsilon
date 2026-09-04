@@ -11,7 +11,6 @@
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
     nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
-    nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
     
     .card { background: #fff; padding: 15px; border-radius: 6px; max-width: 500px; margin: 0 auto; }
     #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
@@ -69,6 +68,16 @@
       display: flex;
       justify-content: space-between;
     }
+    .list-select-box {
+      margin-bottom: 10px;
+    }
+    .list-select-box select {
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background: #fff;
+      font-weight: bold;
+    }
     .shopping-items-list {
       display: flex;
       flex-direction: column;
@@ -103,7 +112,6 @@
       border-radius: 4px;
     }
 
-    /* NEU: Styling für bereits gebuchte Artikel */
     .shopping-item-card.completed {
       background: #f1f5f9;
       border-color: #e2e8f0;
@@ -266,9 +274,17 @@
 
     <div id="shoppingListDrawer">
       <div class="drawer-title">
-        <span>Offene Positionen zur Buchung</span>
+        <span>Gespeicherte Einkaufslisten</span>
         <span style="cursor:pointer;" onclick="toggleShoppingList()">❌ Schließen</span>
       </div>
+      
+      <!-- Dropdown zur Auswahl der gewünschten Liste -->
+      <div class="list-select-box">
+        <select id="shoppingListSelect" onchange="renderSelectedShoppingList()">
+          <option value="__temp__">Aktuelle / Nicht gespeicherte Auswahl</option>
+        </select>
+      </div>
+
       <div id="shoppingListContainer" class="shopping-items-list"></div>
     </div>
 
@@ -341,6 +357,7 @@
     let detectedUvp = null;
     let pendingScanText = "";
     let isPaused = false;
+    let allMasterArticles = [];
 
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
@@ -399,39 +416,81 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       loadStorageLocations();
-      loadShoppingList();
+      initShoppingListDrawer();
     });
 
-    // --- EINKAUFSLISTEN LOGIK MIT DURCHSTREICH-FUNKTION ---
     function toggleShoppingList() {
       let drawer = document.getElementById('shoppingListDrawer');
       if (drawer.style.display === "none" || drawer.style.display === "") {
         drawer.style.display = "block";
-        loadShoppingList();
+        initShoppingListDrawer();
       } else {
         drawer.style.display = "none";
       }
     }
 
-    function loadShoppingList() {
-      let list = JSON.parse(localStorage.getItem("lagerEinkaufsliste") || "[]");
-      let container = document.getElementById('shoppingListContainer');
-      let badge = document.getElementById('shoppingCountBadge');
+    /* --- ERWEITERTE EINKAUFSLISTEN LOGIK --- */
+    function initShoppingListDrawer() {
+      populateListDropdown();
+      renderSelectedShoppingList();
+    }
+
+    function populateListDropdown() {
+      const select = document.getElementById("shoppingListSelect");
+      const savedLists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
       
-      // Berechnet verbleibende offene Buchungspositionen
-      let openItemsCount = list.filter(item => !item.gebucht).length;
+      const currentSelected = select.value;
+      select.innerHTML = '<option value="__temp__">⚡ Aktuelle Auswahl (Temporär)</option>';
+
+      Object.keys(savedLists).forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = "📁 " + name;
+        select.appendChild(opt);
+      });
+
+      if (currentSelected && Array.from(select.options).some(o => o.value === currentSelected)) {
+        select.value = currentSelected;
+      }
+    }
+
+    function renderSelectedShoppingList() {
+      const selectedKey = document.getElementById("shoppingListSelect").value;
+      const container = document.getElementById('shoppingListContainer');
+      const badge = document.getElementById('shoppingCountBadge');
+      
+      let itemsList = [];
+
+      if (selectedKey === "__temp__") {
+        itemsList = JSON.parse(localStorage.getItem("lagerEinkaufsliste") || "[]");
+      } else {
+        const savedLists = JSON.parse(localStorage.getItem("lager_einkaufslisten") || "{}");
+        const listObj = savedLists[selectedKey] || {};
+        const completedMap = JSON.parse(localStorage.getItem("lager_completed_items_" + selectedKey) || "{}");
+
+        Object.keys(listObj).forEach(barcode => {
+          const foundMaster = allMasterArticles.find(a => String(a.barcode) === String(barcode));
+          itemsList.push({
+            barcode: barcode,
+            name: foundMaster ? foundMaster.name : "Artikel " + barcode,
+            menge: listObj[barcode],
+            gebucht: !!completedMap[barcode]
+          });
+        });
+      }
+
+      let openItemsCount = itemsList.filter(item => !item.gebucht).length;
       badge.innerText = openItemsCount;
       container.innerHTML = "";
 
-      if (list.length === 0) {
-        container.innerHTML = `<span style="font-size:12px; color:#64748b; text-align:center;">Keine Artikel in der Einkaufsliste.</span>`;
+      if (itemsList.length === 0) {
+        container.innerHTML = `<span style="font-size:12px; color:#64748b; text-align:center; padding: 10px;">Keine Artikel in dieser Liste.</span>`;
         return;
       }
 
-      // Sortieren: Offene Elemente oben, bereits gebuchte ganz unten
-      list.sort((a, b) => (a.gebucht === b.gebucht) ? 0 : a.gebucht ? 1 : -1);
+      itemsList.sort((a, b) => (a.gebucht === b.gebucht) ? 0 : a.gebucht ? 1 : -1);
 
-      list.forEach((item) => {
+      itemsList.forEach((item) => {
         let card = document.createElement("div");
         card.className = "shopping-item-card" + (item.gebucht ? " completed" : "");
 
@@ -466,10 +525,10 @@
       try {
         let res = await fetch(`${API_URL}?action=getAllArticles`);
         let resData = await res.json();
-        let articles = Array.isArray(resData) ? resData : (resData.data || []);
+        allMasterArticles = Array.isArray(resData) ? resData : (resData.data || []);
 
         let locations = new Set();
-        articles.forEach(item => {
+        allMasterArticles.forEach(item => {
           if (item.platz) locations.add(String(item.platz).trim());
           if (item.plaetze) {
             if (Array.isArray(item.plaetze)) {
@@ -489,6 +548,8 @@
             datalist.appendChild(opt);
           }
         });
+
+        renderSelectedShoppingList();
       } catch (e) {
         console.log("Fehler beim Laden aller Lagerplätze:", e);
       }
@@ -672,15 +733,23 @@
             document.getElementById('invoiceArea').style.display = "block";
           }
 
-          // NEU: Artikel als gebucht markieren (statt zu löschen)
-          let list = JSON.parse(localStorage.getItem("lagerEinkaufsliste") || "[]");
-          let targetItem = list.find(item => item.barcode === barcode && !item.gebucht);
-          if (targetItem) {
-            targetItem.gebucht = true;
-            localStorage.setItem("lagerEinkaufsliste", JSON.stringify(list));
+          // Markiere Artikel in der ausgewählten Liste als gebucht
+          const selectedKey = document.getElementById("shoppingListSelect").value;
+          if (selectedKey === "__temp__") {
+            let list = JSON.parse(localStorage.getItem("lagerEinkaufsliste") || "[]");
+            let targetItem = list.find(item => item.barcode === barcode && !item.gebucht);
+            if (targetItem) {
+              targetItem.gebucht = true;
+              localStorage.setItem("lagerEinkaufsliste", JSON.stringify(list));
+            }
+          } else {
+            const storageKey = "lager_completed_items_" + selectedKey;
+            const completedMap = JSON.parse(localStorage.getItem(storageKey) || "{}");
+            completedMap[barcode] = true;
+            localStorage.setItem(storageKey, JSON.stringify(completedMap));
           }
 
-          loadShoppingList();
+          renderSelectedShoppingList();
 
           document.getElementById('bookingForm').reset();
           document.getElementById('productInfoBox').style.display = "none";
