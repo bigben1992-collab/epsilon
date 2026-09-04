@@ -5,12 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lager Beta - Bilanz & Auswertung</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- jsPDF & AutoTable für PDF-Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  
   <style>
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
     nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
     nav a.active { color: #1e40af; border-bottom: 2px solid #2563eb; }
-    .card { background: #fff; padding: 15px; border-radius: 6px; }
+    .card { background: #fff; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
     
     #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; }
 
@@ -20,15 +24,26 @@
     .filter-box { display: flex; flex-wrap: wrap; gap: 10px; }
     .filter-group { flex: 1; min-width: 140px; }
     
-    button { width: 100%; padding: 10px; margin: 5px 0; background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
+    .button-group { display: flex; gap: 10px; margin-top: 10px; }
+    button { flex: 1; padding: 10px; background: #2563eb; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
     button:hover { background: #1d4ed8; }
     button:disabled { background: #94a3b8; cursor: not-allowed; }
+    button.btn-pdf { background: #059669; }
+    button.btn-pdf:hover { background: #047857; }
     
     .results { margin-top: 20px; border-top: 2px solid #f4f6f8; padding-top: 10px; }
     .metric { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
     .metric-title { font-weight: bold; color: #334155; }
     .highlight { font-size: 1.1em; color: #16a34a; font-weight: bold; }
     .negative { font-size: 1.1em; color: #dc2626; font-weight: bold; }
+
+    /* Tabelle für Einzeltransaktionen */
+    .table-container { overflow-x: auto; margin-top: 15px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+    th { background-color: #f8fafc; color: #1e40af; }
+    .badge-ek { background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    .badge-vk { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -58,11 +73,14 @@
       </div>
       <div class="filter-group" style="flex: 100%;">
         <label for="artikelFilter">Artikel / Barcode (optional):</label>
-        <input type="text" id="artikelFilter" placeholder="z. B. Barcode oder Artikelname">
+        <input type="text" id="artikelFilter" placeholder="z. B. Barcode oder Artikelname und Enter drücken">
       </div>
     </div>
 
-    <button id="btnBerechnen" onclick="ladeBilanz()">Bilanz berechnen</button>
+    <div class="button-group">
+      <button id="btnBerechnen" onclick="ladeBilanz()">Bilanz berechnen</button>
+      <button id="btnPdf" class="btn-pdf" onclick="exportPDF()" disabled>📄 PDF Export</button>
+    </div>
 
     <div class="results">
       <div class="metric">
@@ -88,8 +106,31 @@
     </div>
   </div>
 
+  <div class="card" id="transaktionenCard" style="display: none;">
+    <h3>Einzeltransaktionen im Zeitraum</h3>
+    <div class="table-container">
+      <table id="transaktionenTabelle">
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Typ</th>
+            <th>Artikel / Barcode</th>
+            <th>Menge</th>
+            <th>Einzelpreis</th>
+            <th>Gesamt</th>
+          </tr>
+        </thead>
+        <tbody id="transaktionenBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <script>
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
+
+    let aktuelleTransaktionen = [];
+    let aktuelleBilanzData = null;
 
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
@@ -101,22 +142,30 @@
       }
     });
 
+    // Auto-Submit bei Enter-Taste im Suchfeld
+    document.getElementById("artikelFilter").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        ladeBilanz();
+      }
+    });
+
     async function ladeBilanz() {
       const von = document.getElementById("vonDatum").value;
       const bis = document.getElementById("bisDatum").value;
       const artikel = document.getElementById("artikelFilter").value;
       const btn = document.getElementById("btnBerechnen");
+      const btnPdf = document.getElementById("btnPdf");
 
-      // Validierung der Datumseingaben
       if (von && bis && von > bis) {
         alert("Das 'Von'-Datum darf nicht nach dem 'Bis'-Datum liegen.");
         return;
       }
 
-      // Visuelles Feedback aktivieren
       const originalBtnText = btn.innerText;
       btn.disabled = true;
       btn.innerText = "Berechne...";
+      btnPdf.disabled = true;
 
       const url = `${WEB_APP_URL}?action=getFinance&von=${encodeURIComponent(von)}&bis=${encodeURIComponent(bis)}&artikel=${encodeURIComponent(artikel)}`;
 
@@ -125,6 +174,9 @@
         const data = await res.json();
 
         if (data.status === "success" && data.data) {
+          aktuelleBilanzData = data.data;
+          aktuelleTransaktionen = data.data.transaktionen || [];
+
           document.getElementById("wareneinsatz").innerText = `${data.data.wareneinsatzEK ?? "0.00"} €`;
           document.getElementById("umsatz").innerText = `${data.data.umsatzVK ?? "0.00"} €`;
 
@@ -135,13 +187,16 @@
           rohgewinnEl.innerText = `${data.data.rohgewinn ?? "0.00"} €`;
           rohgewinnEl.className = rohgewinnWert < 0 ? "negative" : "highlight";
 
-          // Dynamische Label-Anpassung
           const isHist = Boolean(data.data.isHistorisch);
           document.getElementById("lbl-lagerwert").innerText = isHist ? "Lagerwert EK (zum Stichtag):" : "Aktueller Lagerwert (EK):";
           document.getElementById("lbl-lagerwertVK").innerText = isHist ? "Lagerwert VK (zum Stichtag):" : "Aktueller Lagerwert (VK):";
 
           document.getElementById("lagerwert").innerText = `${data.data.lagerwert ?? "0.00"} €`;
           document.getElementById("lagerwertVK").innerText = `${data.data.lagerwertVK ?? "0.00"} €`;
+
+          // Transaktionstabelle rendern
+          rendereTransaktionen(aktuelleTransaktionen);
+          btnPdf.disabled = false;
         } else {
           alert("Fehler beim Abrufen der Bilanz: " + (data.message || "Unbekannter Fehler"));
         }
@@ -149,10 +204,99 @@
         console.error(err);
         alert("Netzwerkfehler beim Abrufen der Daten.");
       } finally {
-        // Button-Status zurücksetzen
         btn.disabled = false;
         btn.innerText = originalBtnText;
       }
+    }
+
+    function rendereTransaktionen(liste) {
+      const card = document.getElementById("transaktionenCard");
+      const tbody = document.getElementById("transaktionenBody");
+      tbody.innerHTML = "";
+
+      if (!liste || liste.length === 0) {
+        card.style.display = "none";
+        return;
+      }
+
+      liste.forEach(t => {
+        const tr = document.createElement("tr");
+        const badgeClass = t.typ === "EK" ? "badge-ek" : "badge-vk";
+        
+        tr.innerHTML = `
+          <td>${t.datum}</td>
+          <td><span class="${badgeClass}">${t.typ}</span></td>
+          <td>${t.artikel}</td>
+          <td>${t.menge}</td>
+          <td>${t.einzelpreis} €</td>
+          <td><strong>${t.gesamt} €</strong></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      card.style.display = "block";
+    }
+
+    function exportPDF() {
+      if (!aktuelleBilanzData) return;
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      // Titel
+      doc.setFontSize(18);
+      doc.text("Lager Beta - Finanzbilanz", 14, 20);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      const vonStr = document.getElementById("vonDatum").value || "Anfang";
+      const bisStr = document.getElementById("bisDatum").value || "Heute";
+      const filterStr = document.getElementById("artikelFilter").value;
+      
+      let subtext = `Zeitraum: ${vonStr} bis ${bisStr}`;
+      if (filterStr) subtext += ` | Filter: ${filterStr}`;
+      doc.text(subtext, 14, 27);
+
+      // Kennzahlen Übersicht
+      const summaryRows = [
+        ["Wareneinkauf (EK):", `${aktuelleBilanzData.wareneinsatzEK ?? "0.00"} EUR`],
+        ["Umsatz (VK):", `${aktuelleBilanzData.umsatzVK ?? "0.00"} EUR`],
+        ["Rohgewinn:", `${aktuelleBilanzData.rohgewinn ?? "0.00"} EUR`],
+        [document.getElementById("lbl-lagerwert").innerText, `${aktuelleBilanzData.lagerwert ?? "0.00"} EUR`],
+        [document.getElementById("lbl-lagerwertVK").innerText, `${aktuelleBilanzData.lagerwertVK ?? "0.00"} EUR`]
+      ];
+
+      doc.autoTable({
+        startY: 32,
+        head: [["Kennzahl", "Wert"]],
+        body: summaryRows,
+        theme: "striped",
+        headStyles: { fillColor: [37, 99, 235] }
+      });
+
+      // Transaktionsliste (falls vorhanden)
+      if (aktuelleTransaktionen.length > 0) {
+        const tableBody = aktuelleTransaktionen.map(t => [
+          t.datum,
+          t.typ,
+          t.artikel,
+          t.menge,
+          `${t.einzelpreis} EUR`,
+          `${t.gesamt} EUR`
+        ]);
+
+        doc.text("Einzeltransaktionen", 14, doc.lastAutoTable.finalY + 12);
+
+        doc.autoTable({
+          startY: doc.lastAutoTable.finalY + 16,
+          head: [["Datum", "Typ", "Artikel", "Menge", "Einzelpreis", "Gesamt"]],
+          body: tableBody,
+          theme: "grid",
+          headStyles: { fillColor: [30, 64, 175] }
+        });
+      }
+
+      doc.save(`Finanzbilanz_${vonStr}_bis_${bisStr}.pdf`);
     }
 
     window.onload = ladeBilanz;
