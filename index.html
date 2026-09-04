@@ -3,10 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#2563eb">
+  
   <title>Lager Beta - Hauptmenü</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; background: #f4f6f8; }
-    .header { text-align: center; margin-bottom: 30px; }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    body { 
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      margin: 0; 
+      padding: 20px; 
+      background: #f4f6f8; 
+      color: #1e293b;
+    }
+    .header { 
+      text-align: center; 
+      margin-bottom: 30px; 
+    }
+    .header h1 {
+      margin: 0 0 5px 0;
+      font-size: 28px;
+    }
+    .header p {
+      margin: 0;
+      color: #64748b;
+    }
     .grid-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -26,58 +52,75 @@
       align-items: center;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
-    .menu-card:hover {
+    .menu-card:hover, .menu-card:focus-visible {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
     }
-    .menu-icon { font-size: 32px; margin-bottom: 10px; }
-    .menu-title { font-weight: bold; font-size: 18px; color: #2563eb; }
-    .menu-desc { font-size: 13px; color: #64748b; text-align: center; margin-top: 5px; }
+    .menu-icon { 
+      font-size: 32px; 
+      margin-bottom: 10px; 
+      line-height: 1;
+    }
+    .menu-title { 
+      font-weight: bold; 
+      font-size: 18px; 
+      color: #2563eb; 
+      margin: 0;
+    }
+    .menu-desc { 
+      font-size: 13px; 
+      color: #64748b; 
+      text-align: center; 
+      margin: 5px 0 0 0; 
+    }
   </style>
 </head>
 <body>
 
-  <div class="header">
+  <header class="header">
     <h1>Lagerverwaltung</h1>
     <p>Bitte wählen Sie ein Modul aus:</p>
-  </div>
+  </header>
 
-  <div class="grid-container">
+  <main class="grid-container">
     <a href="buchen.html" class="menu-card">
-      <div class="menu-icon">📦</div>
-      <div class="menu-title">Ware Buchen</div>
-      <div class="menu-desc">Einkäufe (EK) und Verkäufe (VK) erfassen</div>
+      <span class="menu-icon" role="img" aria-label="Paket">📦</span>
+      <h2 class="menu-title">Ware Buchen</h2>
+      <p class="menu-desc">Einkäufe (EK) und Verkäufe (VK) erfassen</p>
     </a>
 
     <a href="artikel.html" class="menu-card">
-      <div class="menu-icon">🔍</div>
-      <div class="menu-title">Artikelabfrage & Etikettendruck</div>
-      <div class="menu-desc">Artikelbestände prüfen und Etiketten drucken</div>
+      <span class="menu-icon" role="img" aria-label="Lupe">🔍</span>
+      <h2 class="menu-title">Artikelabfrage & Etikettendruck</h2>
+      <p class="menu-desc">Artikelbestände prüfen und Etiketten drucken</p>
     </a>
 
     <a href="platz.html" class="menu-card">
-      <div class="menu-icon">📍</div>
-      <div class="menu-title">Platzabfrage</div>
-      <div class="menu-desc">Inhalt einzelner Lagerplätze abrufen</div>
+      <span class="menu-icon" role="img" aria-label="Standort-Pin">📍</span>
+      <h2 class="menu-title">Platzabfrage</h2>
+      <p class="menu-desc">Inhalt einzelner Lagerplätze abrufen</p>
     </a>
+
     <a href="bestandsabfrage.html" class="menu-card">
-      <div class="menu-icon">📝</div>
-      <div class="menu-title">Bestandsabfrage</div>
-      <div class="menu-desc">Warenbestände / Einkaufslisten </div>
+      <span class="menu-icon" role="img" aria-label="Klemmbrett">📝</span>
+      <h2 class="menu-title">Bestandsabfrage</h2>
+      <p class="menu-desc">Warenbestände / Einkaufslisten</p>
     </a>
     
     <a href="bilanz.html" class="menu-card">
-      <div class="menu-icon">📊</div>
-      <div class="menu-title">Bilanz</div>
-      <div class="menu-desc">Finanzübersichten und Lagerwerte einsehen</div>
+      <span class="menu-icon" role="img" aria-label="Diagramm">📊</span>
+      <h2 class="menu-title">Bilanz</h2>
+      <p class="menu-desc">Finanzübersichten und Lagerwerte einsehen</p>
     </a>
 
     <a href="verwaltung.html" class="menu-card">
-      <div class="menu-icon">⚙️</div>
-      <div class="menu-title">Verwaltung</div>
-      <div class="menu-desc">Umlagerungen und Bestandsanpassungen</div>
+      <span class="menu-icon" role="img" aria-label="Zahnrad">⚙️</span>
+      <h2 class="menu-title">Verwaltung</h2>
+      <p class="menu-desc">Umlagerungen und Bestandsanpassungen</p>
     </a>
-  </div>
+  </main>
 
 </body>
 </html>
