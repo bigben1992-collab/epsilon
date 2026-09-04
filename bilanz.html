@@ -2,86 +2,179 @@
 <html>
 <head>
   <base target="_top">
-  <!-- Chart.js für Diagramme einbinden -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finanzübersicht & Barcode Scanner</title>
+  
+  <!-- External Libraries: Chart.js & Quagga2 for Barcode Scanning -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
+
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f8f9fa; color: #333; }
-    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    .kpi-container { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
-    .kpi { flex: 1; min-width: 150px; background: #eef2f5; padding: 15px; border-radius: 6px; text-align: center; }
-    .kpi h4 { margin: 0 0 5px 0; color: #666; font-size: 14px; }
+    /* -------------------------------------------------------------
+       ORIGINAL NAV & LAYOUT STYLES
+       ------------------------------------------------------------- */
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f6f9; color: #333; }
+    
+    /* Global Navigation Bar */
+    .navbar { background-color: #2c3e50; display: flex; flex-wrap: wrap; align-items: center; padding: 10px 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    .navbar .brand { font-size: 18px; font-weight: bold; color: #fff; margin-right: 25px; text-decoration: none; }
+    .nav-links { display: flex; gap: 10px; flex-wrap: wrap; }
+    .nav-links a { color: #ecf0f1; text-decoration: none; padding: 8px 14px; border-radius: 4px; font-size: 14px; transition: background 0.2s; }
+    .nav-links a:hover { background-color: #34495e; }
+    .nav-links a.active { background-color: #3498db; font-weight: bold; }
+
+    /* Main Container */
+    .container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+    
+    /* Cards & Components */
+    .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 20px; }
+    .card h2, .card h3 { margin-top: 0; color: #2c3e50; }
+    
+    /* Filter Section */
+    .filter-grid { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 15px; }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 12px; font-weight: bold; color: #666; }
+    .filter-group input { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+    .input-with-icon { display: flex; gap: 6px; }
+    .btn-cam { background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .btn-cam:hover { background: #2980b9; }
+    .btn-load { background: #2ecc71; color: white; border: none; padding: 9px 18px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    .btn-load:hover { background: #27ae60; }
+
+    /* KPI Dashboard */
+    .kpi-container { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
+    .kpi { flex: 1; min-width: 160px; background: #f8f9fa; border-left: 4px solid #3498db; padding: 15px; border-radius: 4px; }
+    .kpi h4 { margin: 0 0 5px 0; color: #7f8c8d; font-size: 13px; text-transform: uppercase; }
     .kpi .val { font-size: 20px; font-weight: bold; color: #2c3e50; }
+
+    /* Charts */
+    .chart-container { position: relative; max-width: 550px; margin: 15px auto; height: 300px; }
+    .btn-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+    .btn-tab { padding: 6px 14px; border: 1px solid #3498db; background: white; color: #3498db; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .btn-tab.active { background: #3498db; color: white; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-size: 14px; }
+    th { background: #f1f5f9; color: #334155; font-weight: 600; }
+    tr:nth-child(even) { background: #f8fafc; }
     
-    .chart-container { position: relative; max-width: 600px; margin: auto; height: 320px; }
-    .btn-group { display: flex; justify-content: center; margin-bottom: 15px; gap: 10px; }
-    .btn-group button { padding: 8px 16px; border: 1px solid #007bff; background: white; color: #007bff; border-radius: 4px; cursor: pointer; }
-    .btn-group button.active { background: #007bff; color: white; }
-    
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background: #2c3e50; color: white; }
-    tr:nth-child(even) { background: #f2f2f2; }
-    .status-msg { margin-top: 10px; font-weight: bold; color: #d35400; }
+    .status-msg { font-size: 14px; font-weight: bold; color: #e67e22; margin-top: 5px; }
+
+    /* -------------------------------------------------------------
+       CAMERA MODAL / OVERLAY STYLES
+       ------------------------------------------------------------- */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 480px; position: relative; }
+    .modal-close { position: absolute; top: 10px; right: 15px; font-size: 24px; font-weight: bold; cursor: pointer; color: #888; }
+    .scanner-viewport { width: 100%; height: 260px; background: #000; border-radius: 6px; overflow: hidden; position: relative; }
+    .scanner-viewport video, .scanner-viewport canvas { width: 100%; height: 100%; object-fit: cover; }
+    .scanner-guide { position: absolute; top: 50%; left: 10%; width: 80%; height: 2px; background: red; box-shadow: 0 0 8px red; transform: translateY(-50%); }
   </style>
 </head>
 <body>
 
-  <div class="card">
-    <h2>📊 Finanzübersicht & Prozent-Analyse</h2>
-    
-    <!-- Filter -->
-    <div style="display:flex; gap:10px; margin-bottom: 10px; flex-wrap: wrap;">
-      <label>Von: <input type="date" id="filterVon"></label>
-      <label>Bis: <input type="date" id="filterBis"></label>
-      <label>Artikel/Barcode: <input type="text" id="filterArtikel" placeholder="Optional..."></label>
-      <button onclick="loadFinanceData()" style="padding:5px 15px;">Daten laden</button>
+  <!-- ORIGINAL NAVIGATION BAR -->
+  <nav class="navbar">
+    <a href="#" class="brand">📦 Lager-System</a>
+    <div class="nav-links">
+      <a href="Index.html">Dashboard</a>
+      <a href="Lager.html">Lagerbestand</a>
+      <a href="Einbuchen.html">Wareneingang</a>
+      <a href="Ausbuchen.html">Warenausgang</a>
+      <a href="Finanzen.html" class="active">Finanzen & Statistik</a>
     </div>
-    <div id="statusText" class="status-msg"></div>
+  </nav>
 
-    <!-- KPI Dashboard -->
-    <div class="kpi-container" style="margin-top:15px;">
-      <div class="kpi"><h4>Lagerwert (EK)</h4><div class="val" id="valLagerwert">0,00 €</div></div>
-      <div class="kpi"><h4>Umsatz (VK)</h4><div class="val" id="valUmsatz">0,00 €</div></div>
-      <div class="kpi"><h4>Wareneinsatz (EK)</h4><div class="val" id="valEK">0,00 €</div></div>
-      <div class="kpi"><h4>Rohgewinn</h4><div class="val" id="valRohgewinn">0,00 €</div></div>
+  <div class="container">
+    
+    <!-- Filter Card -->
+    <div class="card">
+      <h2>📊 Finanzübersicht & Kennzahlen</h2>
+      
+      <div class="filter-grid">
+        <div class="filter-group">
+          <label for="filterVon">Von Datum:</label>
+          <input type="date" id="filterVon">
+        </div>
+        <div class="filter-group">
+          <label for="filterBis">Bis Datum:</label>
+          <input type="date" id="filterBis">
+        </div>
+        <div class="filter-group">
+          <label for="filterArtikel">Artikel / EAN Barcode:</label>
+          <div class="input-with-icon">
+            <input type="text" id="filterArtikel" placeholder="Name oder EAN...">
+            <!-- Kamera Button mit Icon -->
+            <button type="button" class="btn-cam" onclick="openScanner()" title="EAN mit Kamera scannen">
+              📷
+            </button>
+          </div>
+        </div>
+        <button class="btn-load" onclick="loadFinanceData()">Daten Abrufen</button>
+      </div>
+      
+      <div id="statusText" class="status-msg"></div>
+
+      <!-- KPI Summary Header -->
+      <div class="kpi-container">
+        <div class="kpi"><h4>Lagerwert (EK)</h4><div class="val" id="valLagerwert">0,00 €</div></div>
+        <div class="kpi"><h4>Umsatz (VK)</h4><div class="val" id="valUmsatz">0,00 €</div></div>
+        <div class="kpi"><h4>Wareneinsatz (EK)</h4><div class="val" id="valEK">0,00 €</div></div>
+        <div class="kpi"><h4>Rohgewinn</h4><div class="val" id="valRohgewinn">0,00 €</div></div>
+      </div>
     </div>
+
+    <!-- Chart Section -->
+    <div class="card">
+      <h3>Prozentuale Verteilungen</h3>
+      <div class="btn-group">
+        <button id="btnTabLager" class="btn-tab active" onclick="switchChartTab('lager')">Kapitalbindung (%)</button>
+        <button id="btnTabUmsatz" class="btn-tab" onclick="switchChartTab('umsatz')">Umsatzanteil (%)</button>
+      </div>
+      <div class="chart-container">
+        <canvas id="financeChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Detailed Transactions Table -->
+    <div class="card">
+      <h3>Transaktionshistorie</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Typ</th>
+            <th>Artikel</th>
+            <th>Menge</th>
+            <th>Einzelpreis (€)</th>
+            <th>Gesamt (€)</th>
+          </tr>
+        </thead>
+        <tbody id="tblTransaktionen">
+          <tr><td colspan="6" style="text-align:center; color:#999;">Keine Daten geladen. Bitte Filtereinstellungen wählen.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
   </div>
 
-  <!-- Diagramm Sektion -->
-  <div class="card">
-    <h3>Prozentuale Verteilung pro Artikel</h3>
-    <div class="btn-group">
-      <button id="btnTabLager" class="active" onclick="switchChartTab('lager')">Kapitalbindung / Lagerwert (%)</button>
-      <button id="btnTabUmsatz" onclick="switchChartTab('umsatz')">Umsatzbeitrag (%)</button>
+  <!-- CAMERA SCANNER MODAL OVERLAY -->
+  <div id="scannerModal" class="modal-overlay">
+    <div class="modal-content">
+      <span class="modal-close" onclick="closeScanner()">&times;</span>
+      <h4 style="margin-top:0;">Barcode / EAN scannen</h4>
+      <div id="interactive" class="scanner-viewport">
+        <div class="scanner-guide"></div>
+      </div>
+      <p style="font-size:12px; color:#666; text-align:center; margin-bottom:0;">Halten Sie den Barcode zentriert in die Kamera.</p>
     </div>
-    
-    <div class="chart-container">
-      <canvas id="financeChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Transaktionen Sektion -->
-  <div class="card">
-    <h3>Einzeltransaktionen im Zeitraum</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Datum</th>
-          <th>Typ</th>
-          <th>Artikel</th>
-          <th>Menge</th>
-          <th>Einzelpreis (€)</th>
-          <th>Gesamt (€)</th>
-        </tr>
-      </thead>
-      <tbody id="tblTransaktionen">
-        <tr><td colspan="6" style="text-align:center;">Keine Daten geladen.</td></tr>
-      </tbody>
-    </table>
   </div>
 
   <script>
-    // ⚠️ HIER IHRE DEPLOYTE WEB-APP-URL EINTRAGEN (falls die HTML lokal oder extern läuft)
+    // DEPLOYTE WEB-APP-URL DES BACKENDS (Falls extern betrieben)
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwp9yMSa_6WerEL7CIUmDyKdH9G73DZVgbOFmjMQZrxf8IWSEPAbY-mrOlAZT6BoG7P/exec";
 
     var globalFinanceData = null;
@@ -92,6 +185,9 @@
       document.getElementById('statusText').innerText = text;
     }
 
+    /* -------------------------------------------------------------
+       FINANCE DATA FETCHING & RENDERING
+       ------------------------------------------------------------- */
     function loadFinanceData() {
       setStatus("Lade Daten...");
       
@@ -101,16 +197,14 @@
 
       var payload = { action: "getFinance", von: von, bis: bis, artikel: artikel };
 
-      // 1. Prüfen, ob die Datei in Google Apps Script läuft (google.script.run verfügbar)
+      // Direct Apps Script Execution Check
       if (typeof google !== 'undefined' && google.script && google.script.run) {
         google.script.run
           .withSuccessHandler(onFinanceDataLoaded)
-          .withFailureHandler(function(err) {
-            setStatus("Fehler: " + err);
-          })
+          .withFailureHandler(function(err) { setStatus("Fehler: " + err); })
           .handleRequest_(payload);
       } 
-      // 2. Falls extern geöffnet, direkte HTTP/Fetch-Anfrage an die Web-App-URL nutzen
+      // External Fetching Check
       else if (WEB_APP_URL && !WEB_APP_URL.includes("DEINE_EXEC_ID_HIER")) {
         var params = new URLSearchParams(payload).toString();
         fetch(WEB_APP_URL + "?" + params)
@@ -118,29 +212,26 @@
           .then(data => onFinanceDataLoaded(data))
           .catch(err => setStatus("Netzwerkfehler: " + err));
       } 
-      // 3. Wenn weder noch zutrifft
       else {
-        setStatus("⚠️ Bitte tragen Sie oben im Script die 'WEB_APP_URL' Ihres Backends ein!");
+        setStatus("⚠️ Tragen Sie bitte die WEB_APP_URL ein.");
       }
     }
 
     function onFinanceDataLoaded(response) {
       if (!response || response.status !== "success") {
-        setStatus("Fehler beim Laden der Daten: " + (response ? response.message : "Keine Antwort"));
+        setStatus("Fehler: " + (response ? response.message : "Keine Antwort vom Server"));
         return;
       }
       
-      setStatus(""); // Status zurücksetzen
+      setStatus("");
       var data = response.data;
       globalFinanceData = data;
 
-      // KPIs rendern
       document.getElementById('valLagerwert').innerText = formatCurrency(data.lagerwert);
       document.getElementById('valUmsatz').innerText = formatCurrency(data.umsatzVK);
       document.getElementById('valEK').innerText = formatCurrency(data.wareneinsatzEK);
       document.getElementById('valRohgewinn').innerText = formatCurrency(data.rohgewinn);
 
-      // Transaktionstabelle & Chart rendern
       renderTable(data.transaktionen);
       renderCurrentChart();
     }
@@ -150,7 +241,7 @@
       tbody.innerHTML = "";
       
       if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Buchungen im Zeitraum gefunden.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Datensätze vorhanden.</td></tr>';
         return;
       }
 
@@ -184,27 +275,18 @@
 
       var labels = items.map(i => i.artikel);
       var values = items.map(i => parseFloat(i.prozent));
-
       var ctx = document.getElementById('financeChart').getContext('2d');
 
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
-
-      if (items.length === 0) {
-        return;
-      }
+      if (chartInstance) chartInstance.destroy();
+      if (items.length === 0) return;
 
       chartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
           labels: labels,
           datasets: [{
-            label: 'Anteil (%)',
             data: values,
-            backgroundColor: [
-              '#2ecc71', '#3498db', '#9b59b6', '#f1c40f', '#e67e22', '#e74c3c', '#34495e', '#1abc9c'
-            ]
+            backgroundColor: ['#2ecc71', '#3498db', '#9b59b6', '#f1c40f', '#e67e22', '#e74c3c', '#34495e', '#1abc9c']
           }]
         },
         options: {
@@ -213,9 +295,9 @@
           plugins: {
             tooltip: {
               callbacks: {
-                label: function(context) {
-                  var rawVal = items[context.dataIndex].wert;
-                  return `${context.label}: ${context.raw}% (${formatCurrency(rawVal)})`;
+                label: function(ctx) {
+                  var rawVal = items[ctx.dataIndex].wert;
+                  return `${ctx.label}: ${ctx.raw}% (${formatCurrency(rawVal)})`;
                 }
               }
             }
@@ -228,7 +310,51 @@
       return parseFloat(val || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
     }
 
-    // Beim Laden der Seite automatisch Daten abrufen
+    /* -------------------------------------------------------------
+       QUAGGA2 CAMERA SCANNER IMPLEMENTATION
+       ------------------------------------------------------------- */
+    function openScanner() {
+      document.getElementById('scannerModal').style.display = 'flex';
+      
+      Quagga.init({
+        inputStream: {
+          name: "Live",
+          type: "LiveStream",
+          target: document.querySelector('#interactive'),
+          constraints: {
+            facingMode: "environment" // Nutzung der Hauptkamera am Smartphone
+          }
+        },
+        decoder: {
+          readers: ["ean_reader", "ean_8_reader", "code_128_reader"]
+        }
+      }, function(err) {
+        if (err) {
+          alert("Kamerafehler: " + err);
+          closeScanner();
+          return;
+        }
+        Quagga.start();
+      });
+
+      Quagga.onDetected(onBarcodeDetected);
+    }
+
+    function onBarcodeDetected(result) {
+      if (result && result.codeResult && result.codeResult.code) {
+        var code = result.codeResult.code;
+        document.getElementById('filterArtikel').value = code;
+        closeScanner();
+        loadFinanceData(); // Daten automatisch nach dem Scannen laden
+      }
+    }
+
+    function closeScanner() {
+      Quagga.offDetected(onBarcodeDetected);
+      Quagga.stop();
+      document.getElementById('scannerModal').style.display = 'none';
+    }
+
     window.onload = loadFinanceData;
   </script>
 </body>
