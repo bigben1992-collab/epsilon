@@ -8,7 +8,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   <style>
-    /* Ursprüngliches Navigations-Design */
     body { font-family: sans-serif; margin: 15px; background: #f4f6f8; }
     nav { background: #fff; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
     nav a { text-decoration: none; color: #2563eb; font-weight: bold; }
@@ -23,7 +22,6 @@
     .btn-cancel { background: #dc2626; }
     #status { margin-top: 10px; font-weight: bold; }
 
-    /* Header mit Toggle-Button für die Einkaufsliste */
     .card-header {
       display: flex;
       justify-content: space-between;
@@ -54,7 +52,6 @@
       font-size: 11px;
     }
 
-    /* Einkaufslisten Container (Ausklappbar) */
     #shoppingListDrawer {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -90,7 +87,7 @@
       cursor: pointer;
       transition: all 0.15s ease;
     }
-    .shopping-item-card:hover {
+    .shopping-item-card:hover:not(.completed) {
       border-color: #2563eb;
       background: #eff6ff;
     }
@@ -106,7 +103,22 @@
       border-radius: 4px;
     }
 
-    /* Row Layout */
+    /* NEU: Styling für bereits gebuchte Artikel */
+    .shopping-item-card.completed {
+      background: #f1f5f9;
+      border-color: #e2e8f0;
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .shopping-item-card.completed .shopping-item-name {
+      text-decoration: line-through;
+      color: #94a3b8;
+    }
+    .shopping-item-card.completed .shopping-item-qty {
+      background: #cbd5e1;
+      color: #475569;
+    }
+
     .field-row {
       display: flex;
       align-items: center;
@@ -132,7 +144,6 @@
       border-radius: 4px;
     }
 
-    /* Darstellung der Lagerplätze */
     #stockLocationBox {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -205,7 +216,6 @@
       display: inline-block;
     }
 
-    /* Modal Styling */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -237,7 +247,6 @@
   </style>
 </head>
 <body>
-  <!-- Ursprüngliches Navigations-Layout -->
   <nav>
     <a href="index.html">🏠 Menü</a> |
     <a href="artikel.html">Artikelabfrage & Etikettendruck</a> |
@@ -255,21 +264,17 @@
       </button>
     </div>
 
-    <!-- Ausklappbarer Einkaufslisten-Bereich -->
     <div id="shoppingListDrawer">
       <div class="drawer-title">
         <span>Offene Positionen zur Buchung</span>
         <span style="cursor:pointer;" onclick="toggleShoppingList()">❌ Schließen</span>
       </div>
-      <div id="shoppingListContainer" class="shopping-items-list">
-        <!-- Wird dynamisch befüllt -->
-      </div>
+      <div id="shoppingListContainer" class="shopping-items-list"></div>
     </div>
 
     <div id="reader"></div>
 
     <form id="bookingForm" onsubmit="confirmAndSubmit(event)">
-      <!-- Barcode Feld + Scan-Schalter -->
       <div class="field-row">
         <input type="text" id="barcode" placeholder="Barcode" required autofocus>
         <label class="scan-radio-label">
@@ -277,7 +282,6 @@
         </label>
       </div>
 
-      <!-- Live-Anzeige der aktuellen Lagerorte des Artikels -->
       <div id="stockLocationBox">
         <div class="stock-box-title">📍 Vorhandene Lagerplätze (Klick zum Auswählen):</div>
         <div id="stockList" class="place-tags-container"></div>
@@ -285,7 +289,6 @@
 
       <input type="text" id="name" placeholder="Warenname (optional)">
 
-      <!-- Lagerplatz Feld + Scan-Schalter -->
       <div class="field-row">
         <input type="text" id="platz" list="platzList" placeholder="Lagerplatz (z.B. A1)" required>
         <datalist id="platzList"></datalist>
@@ -319,7 +322,6 @@
     </div>
   </div>
 
-  <!-- Bestätigungs-Modal -->
   <div id="confirmModal" class="modal-overlay">
     <div class="modal-box">
       <h3>Eingabe bestätigen</h3>
@@ -340,7 +342,6 @@
     let pendingScanText = "";
     let isPaused = false;
 
-    // Scanner Setup
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
     scanner.render((text) => {
@@ -385,7 +386,6 @@
       try { scanner.resume(); } catch(e){}
     }
 
-    // Input-Fokus Steuerung
     document.getElementById('barcode').addEventListener('focus', () => {
       document.querySelector('input[name="scanTarget"][value="barcode"]').checked = true;
     });
@@ -402,7 +402,7 @@
       loadShoppingList();
     });
 
-    // --- EINKAUFSLISTEN LOGIK ---
+    // --- EINKAUFSLISTEN LOGIK MIT DURCHSTREICH-FUNKTION ---
     function toggleShoppingList() {
       let drawer = document.getElementById('shoppingListDrawer');
       if (drawer.style.display === "none" || drawer.style.display === "") {
@@ -418,7 +418,9 @@
       let container = document.getElementById('shoppingListContainer');
       let badge = document.getElementById('shoppingCountBadge');
       
-      badge.innerText = list.length;
+      // Berechnet verbleibende offene Buchungspositionen
+      let openItemsCount = list.filter(item => !item.gebucht).length;
+      badge.innerText = openItemsCount;
       container.innerHTML = "";
 
       if (list.length === 0) {
@@ -426,17 +428,23 @@
         return;
       }
 
-      list.forEach((item, index) => {
+      // Sortieren: Offene Elemente oben, bereits gebuchte ganz unten
+      list.sort((a, b) => (a.gebucht === b.gebucht) ? 0 : a.gebucht ? 1 : -1);
+
+      list.forEach((item) => {
         let card = document.createElement("div");
-        card.className = "shopping-item-card";
-        card.onclick = () => selectShoppingItem(item);
+        card.className = "shopping-item-card" + (item.gebucht ? " completed" : "");
+
+        if (!item.gebucht) {
+          card.onclick = () => selectShoppingItem(item);
+        }
 
         card.innerHTML = `
           <div class="shopping-item-info">
             <span class="shopping-item-name">${item.name || 'Unbekannt'}</span>
             <span class="shopping-item-code">Barcode: ${item.barcode}</span>
           </div>
-          <span class="shopping-item-qty">+${item.menge || 1} Stk.</span>
+          <span class="shopping-item-qty">${item.gebucht ? '✓ Gebucht' : '+' + (item.menge || 1) + ' Stk.'}</span>
         `;
         container.appendChild(card);
       });
@@ -446,18 +454,14 @@
       document.getElementById('barcode').value = item.barcode || "";
       document.getElementById('name').value = item.name || "";
       document.getElementById('menge').value = item.menge || 1;
-      document.getElementById('typ').value = "EK"; // Standardmäßig Wareneinkauf auswählen
+      document.getElementById('typ').value = "EK";
 
-      // Artikeldetails laden & Fokus auf Lagerplatz setzen
       fetchArticleInfo(item.barcode);
       document.getElementById('platz').focus();
       
-      // Drawer schließen
       document.getElementById('shoppingListDrawer').style.display = "none";
     }
-    // --- ENDE EINKAUFSLISTEN LOGIK ---
 
-    // Lädt alle existierenden Plätze für das Datalist Dropdown
     async function loadStorageLocations() {
       try {
         let res = await fetch(`${API_URL}?action=getAllArticles`);
@@ -490,7 +494,6 @@
       }
     }
 
-    // Artikeldaten & aktuelle Standorte abfragen
     async function fetchArticleInfo(code) {
       if (!code) return;
 
@@ -502,7 +505,6 @@
       let stockBox = document.getElementById('stockLocationBox');
       let stockList = document.getElementById('stockList');
 
-      // Reset
       infoBox.style.display = "none";
       btnUvp.style.display = "none";
       stockBox.style.display = "none";
@@ -554,7 +556,6 @@
 
       status.innerText = "🔍 Durchsuche externe EAN-Datenbanken...";
 
-      // Open Food Facts Fallback
       try {
         let extRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`);
         let extData = await extRes.json();
@@ -671,10 +672,14 @@
             document.getElementById('invoiceArea').style.display = "block";
           }
 
-          // Gebuchten Artikel ggf. aus der lokalen Einkaufsliste entfernen
+          // NEU: Artikel als gebucht markieren (statt zu löschen)
           let list = JSON.parse(localStorage.getItem("lagerEinkaufsliste") || "[]");
-          let updatedList = list.filter(item => item.barcode !== barcode);
-          localStorage.setItem("lagerEinkaufsliste", JSON.stringify(updatedList));
+          let targetItem = list.find(item => item.barcode === barcode && !item.gebucht);
+          if (targetItem) {
+            targetItem.gebucht = true;
+            localStorage.setItem("lagerEinkaufsliste", JSON.stringify(list));
+          }
+
           loadShoppingList();
 
           document.getElementById('bookingForm').reset();
