@@ -30,18 +30,45 @@
       display: none;
       background: #fff;
     }
+
+    /* Anordnung & Dimensionen für 40x14mm Lückenpapier */
     .label-container {
       display: flex;
       align-items: center;
-      gap: 15px;
-      max-width: 350px;
+      gap: 10px;
+      width: 400px;
+      height: 140px;
       margin: 0 auto;
       border: 1px solid #000;
-      padding: 8px;
-      border-radius: 4px;
+      padding: 6px;
+      border-radius: 6px;
       background: #fff;
+      box-sizing: border-box;
+      overflow: hidden;
     }
-    .label-details { text-align: left; flex: 1; }
+
+    #qrcodeCanvas {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    #qrcodeCanvas img, #qrcodeCanvas canvas {
+      display: block;
+      width: 120px !important;
+      height: 120px !important;
+    }
+
+    .label-details { 
+      text-align: left; 
+      flex: 1; 
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
+    }
+
     .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
     .btn-group button { flex: 1; min-width: 140px; }
 
@@ -141,10 +168,8 @@
     const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
     
     scanner.render((text) => {
-      // Wenn bereits ein Bestätigungsfenster offen ist, weitere Scans verhindern
       if (isPaused) return;
 
-      // Kamera pausieren, um Dauerfeuer zu stoppen
       try {
         scanner.pause(true);
       } catch (e) {
@@ -155,7 +180,6 @@
       confirmAndQuery(text);
     });
 
-    // Öffnet den Bestätigungsdialog
     function confirmAndQuery(code) {
       code = code ? code.trim() : "";
       if (!code) return;
@@ -165,21 +189,18 @@
       document.getElementById('confirmModal').style.display = "flex";
     }
 
-    // Bei Klick auf "Ja, Suchen"
     function acceptCode() {
       document.getElementById('confirmModal').style.display = "none";
       document.getElementById('barcode').value = pendingCode;
       queryArticle(pendingCode);
     }
 
-    // Bei Klick auf "Abbrechen"
     function rejectCode() {
       document.getElementById('confirmModal').style.display = "none";
       pendingCode = "";
       resumeScanner();
     }
 
-    // Gibt die Kamera wieder für Scans frei
     function resumeScanner() {
       isPaused = false;
       try {
@@ -227,7 +248,7 @@
           text: code,
           width: 120,
           height: 120,
-          correctLevel: QRCode.CorrectLevel.H
+          correctLevel: QRCode.CorrectLevel.M
         });
 
         document.getElementById('labelPreview').style.display = "block";
@@ -235,7 +256,7 @@
       } catch (err) {
         document.getElementById('result').innerText = "Fehler beim Laden!";
       } finally {
-        resumeScanner(); // Scanner wieder aktivieren nach Abfragenabschluss
+        resumeScanner();
       }
     }
 
