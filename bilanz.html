@@ -279,27 +279,34 @@
         return;
       }
 
-      // 1. Daten nach Artikelnamen gruppieren & Werte summieren
-      const groupedMap = {};
-      rawItems.forEach(item => {
-        const name = item.artikel || "Unbekannt";
-        const wert = parseFloat(item.wert) || 0;
-        const prozent = parseFloat(item.prozent) || 0;
+      // 1. Absolute Euro-Werte nach bereinigtem Artikelnamen aufsummieren
+      const groupedValues = {};
+      let gesamtWert = 0;
 
-        if (!groupedMap[name]) {
-          groupedMap[name] = { wert: 0, prozent: 0 };
+      rawItems.forEach(item => {
+        let rawName = item.artikel ? String(item.artikel) : "Unbekannt";
+        let cleanName = rawName.trim().replace(/\s+/g, ' '); 
+
+        const val = parseFloat(String(item.wert).replace(',', '.')) || 0;
+
+        if (!groupedValues[cleanName]) {
+          groupedValues[cleanName] = 0;
         }
-        groupedMap[name].wert += wert;
-        groupedMap[name].prozent += prozent;
+        groupedValues[cleanName] += val;
+        gesamtWert += val;
       });
 
-      const labels = Object.keys(groupedMap);
-      const values = labels.map(label => groupedMap[label].prozent.toFixed(2));
-      const wertes = labels.map(label => groupedMap[label].wert.toFixed(2));
+      const labels = Object.keys(groupedValues);
+      
+      // 2. Prozentanteile basierend auf der aufsummierten Gesamtsumme berechnen
+      const wertes = labels.map(label => groupedValues[label]);
+      const values = labels.map(label => {
+        return gesamtWert > 0 ? ((groupedValues[label] / gesamtWert) * 100).toFixed(2) : 0;
+      });
 
-      // 2. Dynamische Farbpalette generieren (garantiert eindeutige Farben für jeden Artikel)
+      // 3. Dynamische Farbpalette generieren (garantiert eindeutige Farben für jeden Artikel)
       const colors = labels.map((_, i) => {
-        const hue = (i * 137.5) % 360; // Golden Ratio Hue Spacing für maximalen Kontrast
+        const hue = (i * 137.5) % 360; 
         return `hsl(${hue}, 65%, 50%)`;
       });
 
@@ -328,7 +335,8 @@
               callbacks: {
                 label: function(context) {
                   const idx = context.dataIndex;
-                  return `${context.label}: ${values[idx]}% (${wertes[idx]} €)`;
+                  const euroFormatted = wertes[idx].toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  return `${context.label}: ${values[idx]}% (${euroFormatted} €)`;
                 }
               }
             }
