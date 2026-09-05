@@ -50,6 +50,11 @@
     .chart-btn-group button.active { background: #2563eb; color: white; border-color: #2563eb; }
     .chart-container { position: relative; max-width: 450px; margin: 0 auto; height: 280px; }
 
+    /* Benutzerdefinierte Legende */
+    .chart-legend { display: none; flex-direction: column; gap: 5px; margin-top: 15px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; background-color: #f8fafc; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .legend-color { width: 16px; height: 16px; border-radius: 4px; }
+
     /* Tabelle für Einzeltransaktionen */
     .table-container { overflow-x: auto; margin-top: 15px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
@@ -134,6 +139,7 @@
     <div class="chart-container">
       <canvas id="prozentChart"></canvas>
     </div>
+    <div id="chartLegend" class="chart-legend"></div>
   </div>
 
   <div class="card" id="transaktionenCard" style="display: none;">
@@ -267,8 +273,11 @@
 
     function renderChart() {
       const card = document.getElementById("chartCard");
+      const legend = document.getElementById("chartLegend");
+      
       if (!aktuelleBilanzData) {
         card.style.display = "none";
+        legend.style.display = "none";
         return;
       }
 
@@ -283,6 +292,7 @@
 
       if (!rawItems || rawItems.length === 0) {
         card.style.display = "none";
+        legend.style.display = "none";
         return;
       }
 
@@ -318,6 +328,25 @@
       });
 
       card.style.display = "block";
+      legend.style.display = "flex";
+      legend.innerHTML = ""; // Vorherige Legende löschen
+
+      // 4. Benutzerdefinierte Legende generieren
+      labels.forEach((label, i) => {
+        const legendItem = document.createElement("div");
+        legendItem.className = "legend-item";
+        
+        const legendColor = document.createElement("div");
+        legendColor.className = "legend-color";
+        legendColor.style.backgroundColor = colors[i];
+        
+        const legendText = document.createElement("span");
+        legendText.innerText = `${label} (${values[i]}%)`;
+        
+        legendItem.appendChild(legendColor);
+        legendItem.appendChild(legendText);
+        legend.appendChild(legendItem);
+      });
 
       const ctx = document.getElementById('prozentChart').getContext('2d');
 
@@ -338,6 +367,9 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
+            legend: {
+              display: false // Standard-Legende deaktivieren
+            },
             tooltip: {
               callbacks: {
                 label: function(context) {
