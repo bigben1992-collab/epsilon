@@ -45,7 +45,7 @@
     .negative { font-size: 1.1em; color: #dc2626; font-weight: bold; }
 
     /* Chart Styles */
-    .chart-btn-group { display: flex; gap: 8px; justify-content: center; margin-bottom: 15px; }
+    .chart-btn-group { display: flex; gap: 8px; justify-content: center; margin-bottom: 15px; flex-wrap: wrap; }
     .chart-btn-group button { flex: none; padding: 6px 12px; background: #f1f5f9; color: #1e40af; border: 1px solid #cbd5e1; font-size: 13px; }
     .chart-btn-group button.active { background: #2563eb; color: white; border-color: #2563eb; }
     .chart-container { position: relative; max-width: 450px; margin: 0 auto; height: 280px; }
@@ -129,6 +129,7 @@
     <div class="chart-btn-group">
       <button id="btnTabLager" class="active" onclick="switchChartTab('lager')">Lagerwert / Kapital (%)</button>
       <button id="btnTabUmsatz" onclick="switchChartTab('umsatz')">Umsatzanteil (%)</button>
+      <button id="btnTabEinkauf" onclick="switchChartTab('einkauf')">Wareneinkauf (%)</button>
     </div>
     <div class="chart-container">
       <canvas id="prozentChart"></canvas>
@@ -260,6 +261,7 @@
       currentChartMode = mode;
       document.getElementById('btnTabLager').classList.toggle('active', mode === 'lager');
       document.getElementById('btnTabUmsatz').classList.toggle('active', mode === 'umsatz');
+      document.getElementById('btnTabEinkauf').classList.toggle('active', mode === 'einkauf');
       renderChart();
     }
 
@@ -270,9 +272,14 @@
         return;
       }
 
-      const rawItems = currentChartMode === 'lager' 
-        ? aktuelleBilanzData.anteilLagerwert 
-        : aktuelleBilanzData.anteilUmsatz;
+      let rawItems = [];
+      if (currentChartMode === 'lager') {
+        rawItems = aktuelleBilanzData.anteilLagerwert;
+      } else if (currentChartMode === 'umsatz') {
+        rawItems = aktuelleBilanzData.anteilUmsatz;
+      } else if (currentChartMode === 'einkauf') {
+        rawItems = aktuelleBilanzData.anteilEinkauf;
+      }
 
       if (!rawItems || rawItems.length === 0) {
         card.style.display = "none";
